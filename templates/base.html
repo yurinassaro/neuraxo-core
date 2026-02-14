@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NeuraxoCore{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Verifica preferência salva ou do sistema
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.remove('light');
+            document.documentElement.classList.add('dark');
+        }
+        // Configura Tailwind para dark mode
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Cores de prioridade */
+        .prioridade-baixa { background-color: #22c55e; color: white; }
+        .prioridade-media { background-color: #f59e0b; color: white; }
+        .prioridade-alta { background-color: #f97316; color: white; }
+        .prioridade-urgente { background-color: #ef4444; color: white; }
+        /* Status prazo */
+        .prazo-normal { border-left-color: #22c55e; }
+        .prazo-proximo { border-left-color: #f59e0b; }
+        .prazo-urgente { border-left-color: #f97316; }
+        .prazo-atrasado { border-left-color: #ef4444; }
+        /* Dark mode transitions */
+        html.dark { background-color: #111827; }
+        body, .bg-gray-100 { transition: background-color 0.2s, color 0.2s; }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen overflow-x-hidden transition-colors">
+    {% if user.is_authenticated %}
+    <nav class="bg-indigo-600 dark:bg-gray-800 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <a href="{% url 'dashboard' %}" class="text-xl font-bold">NeuraxoCore</a>
+
+                <!-- Hamburger button (mobile) -->
+                <button id="menu-toggle" class="lg:hidden p-2 rounded hover:bg-indigo-700 dark:hover:bg-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path id="menu-icon" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+
+                <!-- Desktop menu -->
+                <div class="hidden lg:flex items-center space-x-2">
+                    <a href="{% url 'dashboard' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Dashboard</a>
+                    <a href="{% url 'rotina_diaria' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Rotina</a>
+                    <a href="{% url 'lista_demandas' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Pendências</a>
+                    <a href="{% url 'lista_projetos' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Projetos</a>
+                    <a href="{% url 'aproveitamento' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Aproveitamento</a>
+                    {% if user.pessoa.is_gestor %}
+                    <a href="{% url 'acompanhamento' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Acompanhamento</a>
+                    {% endif %}
+                    <a href="{% url 'calendario' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Calendário</a>
+                    <div class="relative group">
+                        <a href="{% url 'dashboard_financeiro' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded flex items-center text-sm">
+                            Financeiro
+                            <svg class="w-3 h-3 ml-1 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </a>
+                        <div class="absolute right-0 top-full mt-0 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 hidden group-hover:block z-50">
+                            <a href="{% url 'dashboard_financeiro' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white rounded-t-lg">Dashboard</a>
+                            <a href="{% url 'lancar' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white">Lançar</a>
+                            <a href="{% url 'lista_lancamentos' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white">Lançamentos</a>
+                            <a href="{% url 'contas_bancarias' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white">Contas Bancárias</a>
+                            <a href="{% url 'contas_pagar' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white">Contas a Pagar</a>
+                            <a href="{% url 'gerenciar_categorias' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white">Categorias</a>
+                            <a href="{% url 'relatorio_financeiro' %}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-gray-700 hover:text-indigo-700 dark:hover:text-white rounded-b-lg">Relatório</a>
+                        </div>
+                    </div>
+                    {% if user.is_staff %}
+                    <a href="{% url 'wapi_painel' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">WhatsApp</a>
+                    <a href="{% url 'admin:index' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Admin</a>
+                    {% endif %}
+                    <span class="text-indigo-300 dark:text-gray-500 mx-1">|</span>
+                    <!-- Dark mode toggle -->
+                    <button id="theme-toggle" class="p-2 rounded hover:bg-indigo-700 dark:hover:bg-gray-700" title="Alternar tema">
+                        <!-- Sun icon (dark mode) -->
+                        <svg id="theme-sun" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+                        </svg>
+                        <!-- Moon icon (light mode) -->
+                        <svg id="theme-moon" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                        </svg>
+                    </button>
+                    <span class="text-indigo-200 dark:text-gray-400 text-sm">{{ user.username }}</span>
+                    <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button type="submit" class="bg-indigo-700 dark:bg-gray-700 hover:bg-indigo-800 dark:hover:bg-gray-600 px-3 py-2 rounded text-sm">Sair</button></form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden lg:hidden bg-indigo-700 dark:bg-gray-800 border-t border-indigo-500 dark:border-gray-700">
+            <div class="px-4 py-3 space-y-1">
+                <a href="{% url 'dashboard' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Dashboard</a>
+                <a href="{% url 'rotina_diaria' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Rotina Diária</a>
+                <a href="{% url 'lista_demandas' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Pendências</a>
+                <a href="{% url 'lista_projetos' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Projetos</a>
+                <a href="{% url 'aproveitamento' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Aproveitamento</a>
+                {% if user.pessoa.is_gestor %}
+                <a href="{% url 'acompanhamento' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Acompanhamento</a>
+                {% endif %}
+                <a href="{% url 'calendario' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Calendário</a>
+                <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2">
+                    <span class="px-3 text-indigo-300 dark:text-gray-400 text-sm">Financeiro</span>
+                    <a href="{% url 'dashboard_financeiro' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Dashboard</a>
+                    <a href="{% url 'lancar' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Lançar</a>
+                    <a href="{% url 'lista_lancamentos' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Lançamentos</a>
+                    <a href="{% url 'contas_bancarias' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Contas Bancárias</a>
+                    <a href="{% url 'contas_pagar' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Contas a Pagar</a>
+                    <a href="{% url 'gerenciar_categorias' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Categorias</a>
+                    <a href="{% url 'relatorio_financeiro' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Relatório</a>
+                </div>
+                {% if user.is_staff %}
+                <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2">
+                    <a href="{% url 'wapi_painel' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">WhatsApp</a>
+                    <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Admin</a>
+                </div>
+                {% endif %}
+                <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-indigo-200 dark:text-gray-400 px-3">{{ user.username }}</span>
+                        <!-- Mobile dark mode toggle -->
+                        <button id="theme-toggle-mobile" class="p-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700" title="Alternar tema">
+                            <svg id="theme-sun-mobile" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+                            </svg>
+                            <svg id="theme-moon-mobile" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" class="bg-indigo-800 dark:bg-gray-700 hover:bg-indigo-900 dark:hover:bg-gray-600 px-4 py-2 rounded">Sair</button></form>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <script>
+        // Mobile menu toggle
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        });
+
+        // Dark mode toggle function
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+
+            if (isDark) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            updateThemeIcons();
+        }
+
+        // Update icons based on current theme
+        function updateThemeIcons() {
+            const isDark = document.documentElement.classList.contains('dark');
+            // Desktop icons
+            document.getElementById('theme-sun').classList.toggle('hidden', !isDark);
+            document.getElementById('theme-moon').classList.toggle('hidden', isDark);
+            // Mobile icons
+            const sunMobile = document.getElementById('theme-sun-mobile');
+            const moonMobile = document.getElementById('theme-moon-mobile');
+            if (sunMobile && moonMobile) {
+                sunMobile.classList.toggle('hidden', !isDark);
+                moonMobile.classList.toggle('hidden', isDark);
+            }
+        }
+
+        // Add click listeners
+        document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+        const mobileToggle = document.getElementById('theme-toggle-mobile');
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', toggleTheme);
+        }
+
+        // Initial icon state
+        updateThemeIcons();
+    </script>
+    {% endif %}
+
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 mt-4">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg mb-2 {% if message.tags == 'success' %}bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200{% elif message.tags == 'error' %}bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200{% elif message.tags == 'warning' %}bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200{% else %}bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center text-gray-500 dark:text-gray-400 py-4 mt-8">
+        <p>NeuraxoCore - Sistema de Checklists</p>
+    </footer>
+</body>
+</html>

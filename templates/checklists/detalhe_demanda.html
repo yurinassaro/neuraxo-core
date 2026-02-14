@@ -1,0 +1,994 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ demanda.titulo }} - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'lista_demandas' %}" class="text-indigo-600 hover:underline">&larr; Voltar para pendências</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Coluna Principal -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Cabeçalho -->
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="px-2 py-1 text-xs rounded" style="background-color: {{ demanda.empresa.cor }}20; color: {{ demanda.empresa.cor }};">
+                            {{ demanda.empresa.nome }}
+                        </span>
+                        <span class="px-2 py-1 text-xs rounded prioridade-{{ demanda.prioridade }}">
+                            {{ demanda.get_prioridade_display }}
+                        </span>
+                    </div>
+                    <h1 class="text-xl sm:text-2xl font-bold text-gray-800 break-words">{{ demanda.titulo }}</h1>
+                {% if demanda.projeto %}
+                <a href="{% url 'detalhe_projeto' demanda.projeto.id %}" class="inline-flex items-center mt-1 text-sm text-indigo-600 hover:underline">
+                    <svg class="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <span class="truncate">Projeto: {{ demanda.projeto.titulo }}</span>
+                </a>
+                {% endif %}
+                </div>
+                <!-- Status Badge + Editar -->
+                <div class="flex flex-wrap items-center gap-2">
+                    {% if pessoa.is_gestor or demanda.solicitante == pessoa %}
+                    <a href="{% url 'editar_demanda' demanda.id %}" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm flex items-center space-x-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        <span>Editar</span>
+                    </a>
+                    {% endif %}
+                <div id="status-badge">
+                    {% if demanda.status == 'concluido' %}
+                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap">Concluído</span>
+                    {% elif demanda.status == 'dependente' %}
+                    <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium whitespace-nowrap">Aguardando</span>
+                    {% elif demanda.status == 'em_andamento' %}
+                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium whitespace-nowrap">Em Andamento</span>
+                    {% else %}
+                    <span class="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium whitespace-nowrap">Pendente</span>
+                    {% endif %}
+                </div>
+                </div>
+            </div>
+
+            {% if demanda.descricao %}
+            <p class="text-gray-600 mb-4">{{ demanda.descricao }}</p>
+            {% endif %}
+
+            <!-- Alerta de Dependência -->
+            {% if demanda.status == 'dependente' %}
+            <div id="alerta-dependencia" class="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <div class="flex items-center space-x-2 text-orange-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">Aguardando: {% if demanda.dependente_de %}{{ demanda.dependente_de.nome }}{% elif demanda.dependente_externo %}{{ demanda.dependente_externo }} <span class="text-xs bg-orange-200 px-1 rounded">externo</span>{% else %}alguém{% endif %}</span>
+                    {% if demanda.telefone_dependente_externo %}
+                    <button onclick="cobrarExterno('{{ demanda.dependente_externo }}', '{{ demanda.telefone_dependente_externo }}', '{{ demanda.motivo_dependencia }}')"
+                       class="inline-flex items-center px-2 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 ml-2">
+                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                        Cobrar via WhatsApp
+                    </button>
+                    <a href="https://wa.me/55{{ demanda.telefone_dependente_externo }}" target="_blank"
+                       class="inline-flex items-center px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-lg hover:bg-gray-300 ml-1">
+                        Abrir Chat
+                    </a>
+                    {% endif %}
+                </div>
+                {% if demanda.motivo_dependencia %}
+                <p class="text-sm text-orange-700 mt-1">{{ demanda.motivo_dependencia }}</p>
+                {% endif %}
+                <button onclick="resolverDependencia()" class="mt-2 text-sm text-orange-600 hover:text-orange-800 underline">
+                    Dependência resolvida? Clique aqui
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- Progresso -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600">Progresso</span>
+                    <span id="progresso-texto" class="font-medium">{{ demanda.get_progresso }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="progresso-barra" class="bg-indigo-600 h-3 rounded-full transition-all duration-300" style="width: {{ demanda.get_progresso }}%"></div>
+                </div>
+            </div>
+
+            <div class="text-sm text-gray-500 space-y-1">
+                <p><strong>Prazo:</strong> {{ demanda.prazo|date:"d/m/Y H:i" }}
+                    {% if demanda.get_status_prazo == 'atrasado' %}
+                    <span class="text-red-600 font-medium">(ATRASADO)</span>
+                    {% elif demanda.get_status_prazo == 'urgente' %}
+                    <span class="text-orange-600 font-medium">(Vence em breve)</span>
+                    {% endif %}
+                </p>
+                {% if demanda.iniciado_em %}
+                <p class="text-blue-600">Iniciado em: {{ demanda.iniciado_em|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+                {% if demanda.concluido_em %}
+                <p class="text-green-600">Concluído em: {{ demanda.concluido_em|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Controle de Status -->
+        {% if demanda.status != 'concluido' %}
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h2 class="text-lg font-semibold mb-4">Alterar Status</h2>
+            <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <button onclick="mudarStatus('pendente')"
+                        class="px-4 py-2 rounded-lg border-2 {% if demanda.status == 'pendente' %}border-gray-500 bg-gray-100{% else %}border-gray-200 hover:border-gray-400{% endif %}">
+                    Pendente
+                </button>
+                <button onclick="mudarStatus('em_andamento')"
+                        class="px-4 py-2 rounded-lg border-2 {% if demanda.status == 'em_andamento' %}border-blue-500 bg-blue-100{% else %}border-gray-200 hover:border-blue-400{% endif %}">
+                    Em Andamento
+                </button>
+                <button onclick="abrirModalDependencia()"
+                        class="px-4 py-2 rounded-lg border-2 {% if demanda.status == 'dependente' %}border-orange-500 bg-orange-100{% else %}border-gray-200 hover:border-orange-400{% endif %}">
+                    Aguardando Dependência
+                </button>
+                <button onclick="mudarStatus('concluido')"
+                        class="px-4 py-2 rounded-lg border-2 border-gray-200 hover:border-green-400 bg-green-50 text-green-700">
+                    Concluir
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Demanda Concluída</h2>
+            <button onclick="reabrirDemanda()" class="px-4 py-2 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                Reabrir Demanda
+            </button>
+        </div>
+        {% endif %}
+
+        <!-- Timer -->
+        <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <div class="flex items-center gap-2">
+                    <h2 class="text-lg font-semibold">Tempo de Execução</h2>
+                    {% if pessoa.is_gestor or request.user.is_superuser %}
+                    <button onclick="abrirModalEditarTimer()" class="ml-2 px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 flex items-center gap-1" title="Editar timer manualmente">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        Editar
+                    </button>
+                    {% endif %}
+                </div>
+                {% if demanda.tempo_estimado %}
+                <span id="tempo-estimado-badge" class="px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 self-start sm:self-auto">
+                    Estimado: {{ demanda.get_tempo_estimado_display }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-center">
+                <div id="timer-display" class="text-3xl sm:text-5xl font-mono font-bold text-gray-800">
+                    {{ demanda.get_tempo_formatado }}
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-center gap-3 sm:space-x-4 mt-6">
+                {% if demanda.status != 'concluido' %}
+                <button id="btn-iniciar" onclick="iniciarTimer()"
+                        class="{% if demanda.timer_ativo %}hidden{% endif %} px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    </svg>
+                    <span>Iniciar Timer</span>
+                </button>
+                <button id="btn-pausar" onclick="pausarTimer()"
+                        class="{% if not demanda.timer_ativo %}hidden{% endif %} px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium flex items-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Pausar</span>
+                </button>
+                {% else %}
+                <div class="text-green-600 font-medium">
+                    Demanda concluída em {{ demanda.get_tempo_formatado }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Checklist -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Checklist</h2>
+            {% if demanda.status != 'concluido' %}
+            <div class="flex space-x-2 mb-4">
+                <input type="text" id="nova-subtarefa" placeholder="Adicionar item..."
+                       class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       onkeypress="if(event.key === 'Enter') adicionarSubtarefa()">
+                <button onclick="adicionarSubtarefa()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Adicionar
+                </button>
+            </div>
+            {% endif %}
+            <ul id="lista-subtarefas" class="space-y-2">
+                {% for sub in demanda.subtarefas_demanda.all %}
+                <li id="subtarefa-{{ sub.id }}" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg group">
+                    <div class="flex items-center space-x-3">
+                        <input type="checkbox" {% if sub.concluida %}checked{% endif %}
+                               onchange="toggleSubtarefa({{ sub.id }})"
+                               class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                               {% if demanda.status == 'concluido' %}disabled{% endif %}>
+                        <span class="{% if sub.concluida %}line-through text-gray-400{% endif %}">{{ sub.titulo }}</span>
+                    </div>
+                    {% if demanda.status != 'concluido' %}
+                    <button onclick="excluirSubtarefa({{ sub.id }})"
+                            class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                </li>
+                {% empty %}
+                <li id="sem-subtarefas" class="text-gray-400 text-center py-4">
+                    Nenhum item no checklist.
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Anotações (Editor Rico) -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold">Anotações</h2>
+                <span id="status-salvamento" class="text-sm text-gray-400"></span>
+            </div>
+            {% if demanda.status != 'concluido' %}
+            <!-- Quill Editor -->
+            <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+            <style>
+                #editor-anotacoes { border: 1px solid #e5e7eb; border-radius: 0.5rem; }
+                #editor-anotacoes .ql-toolbar { border: none; border-bottom: 1px solid #e5e7eb; border-radius: 0.5rem 0.5rem 0 0; background: #f9fafb; }
+                #editor-anotacoes .ql-container { border: none; font-size: 14px; min-height: 180px; border-radius: 0 0 0.5rem 0.5rem; }
+                #editor-anotacoes .ql-editor { min-height: 180px; }
+            </style>
+            <div id="editor-anotacoes">
+                <div id="editor-content">{{ demanda.anotacoes|safe }}</div>
+            </div>
+            {% else %}
+            <div class="prose prose-sm max-w-none p-4 bg-gray-50 rounded-lg">{{ demanda.anotacoes|safe }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Comentários -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Comentários</h2>
+            <div id="lista-comentarios" class="space-y-4 mb-4">
+                {% for com in demanda.comentarios.all %}
+                <div class="p-3 bg-gray-50 rounded-lg">
+                    <div class="flex justify-between text-sm text-gray-500 mb-1">
+                        <span class="font-medium text-gray-700">{{ com.autor.nome }}</span>
+                        <span>{{ com.criado_em|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <p class="text-gray-600">{{ com.texto }}</p>
+                </div>
+                {% empty %}
+                <p class="text-gray-400 text-center">Nenhum comentário ainda.</p>
+                {% endfor %}
+            </div>
+            <div class="flex space-x-2">
+                <input type="text" id="novo-comentario" placeholder="Adicionar comentário..."
+                       class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                       onkeypress="if(event.key === 'Enter') adicionarComentario()">
+                <button onclick="adicionarComentario()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Enviar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coluna Lateral -->
+    <div class="space-y-6">
+        <!-- Instruções -->
+        {% if demanda.instrucoes %}
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Instruções</h2>
+            <div class="prose prose-sm max-w-none text-gray-600">
+                {{ demanda.instrucoes|linebreaks }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Informações -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Informações</h2>
+            <dl class="space-y-3 text-sm">
+                <div>
+                    <dt class="text-gray-500">Responsável</dt>
+                    <dd class="font-medium">{{ demanda.responsavel.nome }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Solicitado por</dt>
+                    <dd class="font-medium">{{ demanda.solicitante.nome }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Empresa</dt>
+                    <dd class="font-medium">{{ demanda.empresa.nome }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500">Criado em</dt>
+                    <dd class="font-medium">{{ demanda.criado_em|date:"d/m/Y H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Anexos -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Anexos</h2>
+            <div id="lista-anexos" class="space-y-2 mb-4">
+                {% for anexo in demanda.anexos.all %}
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <a href="{{ anexo.arquivo.url }}" target="_blank" class="text-indigo-600 hover:underline text-sm truncate flex-1">
+                        {{ anexo.nome_original }}
+                    </a>
+                    <span class="text-xs text-gray-500 mx-2">{{ anexo.get_tamanho_formatado }}</span>
+                    {% if demanda.status != 'concluido' %}
+                    <button onclick="excluirAnexo({{ anexo.id }})" class="text-red-500 hover:text-red-700">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-gray-400 text-sm">Nenhum anexo.</p>
+                {% endfor %}
+            </div>
+            {% if demanda.status != 'concluido' %}
+            <input type="file" id="input-anexo" class="hidden" onchange="uploadAnexo()">
+            <button onclick="document.getElementById('input-anexo').click()" class="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-indigo-500 hover:text-indigo-500">
+                + Adicionar anexo
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Timer (Gestor) -->
+{% if pessoa.is_gestor %}
+<div id="modal-editar-timer" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold mb-4">Editar Tempo de Execução</h3>
+        <div class="space-y-4">
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Horas</label>
+                    <input type="number" id="timer-horas" min="0" max="999" value="0"
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-lg">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Minutos</label>
+                    <input type="number" id="timer-minutos" min="0" max="59" value="0"
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-lg">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Segundos</label>
+                    <input type="number" id="timer-segundos" min="0" max="59" value="0"
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-lg">
+                </div>
+            </div>
+            <button onclick="zerarTimer()" class="w-full px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm">
+                Zerar Timer
+            </button>
+        </div>
+        <div class="flex justify-end space-x-2 mt-6">
+            <button onclick="fecharModalEditarTimer()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                Cancelar
+            </button>
+            <button onclick="salvarTimer()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal de Dependência -->
+<div id="modal-dependencia" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold mb-4">Marcar como Dependente</h3>
+        <div class="space-y-4">
+            <div class="flex space-x-2 mb-2">
+                <button type="button" onclick="setTipoDep('interno')" id="btn-dep-interno"
+                        class="flex-1 px-3 py-2 text-sm rounded-lg border-2 border-indigo-500 bg-indigo-50 text-indigo-700 font-medium">
+                    Equipe
+                </button>
+                <button type="button" onclick="setTipoDep('externo')" id="btn-dep-externo"
+                        class="flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 text-gray-600 hover:border-gray-400">
+                    Pessoa Externa
+                </button>
+            </div>
+            <div id="dep-interno">
+                <label class="block text-sm text-gray-600 mb-1">De quem você depende?</label>
+                <select id="select-dependente" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+            <div id="dep-externo" class="hidden space-y-3">
+                <div class="relative">
+                    <label class="block text-sm text-gray-600 mb-1">Nome da pessoa</label>
+                    <input type="text" id="nome-externo" placeholder="Digite para buscar..."
+                           autocomplete="off"
+                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <div id="autocomplete-externo" class="absolute z-50 w-full bg-white border rounded-lg shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">WhatsApp (opcional)</label>
+                    <input type="text" id="telefone-externo" placeholder="Ex: 11999999999"
+                           class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Motivo (opcional)</label>
+                <input type="text" id="motivo-dependencia" placeholder="Ex: Aguardando envio do contrato"
+                       class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+        </div>
+        <div class="flex justify-end space-x-2 mt-6">
+            <button onclick="fecharModalDependencia()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                Cancelar
+            </button>
+            <button onclick="salvarDependencia()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+                Marcar como Dependente
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const demandaId = {{ demanda.id }};
+const csrfToken = '{{ csrf_token }}';
+let timerInterval = null;
+let tempoBase = {{ demanda.get_tempo_total }};
+let timerAtivo = {{ demanda.timer_ativo|yesno:"true,false" }};
+let timerInicio = {% if demanda.timer_inicio %}'{{ demanda.timer_inicio.isoformat }}'{% else %}null{% endif %};
+let tempoEstimado = {{ demanda.tempo_estimado }} * 60;
+
+// Timer
+function formatarTempo(segundos) {
+    const horas = Math.floor(segundos / 3600);
+    const minutos = Math.floor((segundos % 3600) / 60);
+    const segs = segundos % 60;
+    if (horas > 0) {
+        return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+    }
+    return `${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+}
+
+function atualizarDisplay() {
+    let tempoTotal = tempoBase;
+    if (timerAtivo && timerInicio) {
+        const inicio = new Date(timerInicio);
+        const agora = new Date();
+        const diff = Math.floor((agora - inicio) / 1000);
+        tempoTotal += diff;
+    }
+    const display = document.getElementById('timer-display');
+    display.textContent = formatarTempo(tempoTotal);
+    if (tempoEstimado > 0) {
+        const badge = document.getElementById('tempo-estimado-badge');
+        if (tempoTotal > tempoEstimado) {
+            display.className = 'text-5xl font-mono font-bold text-red-600';
+            if (badge) { badge.className = 'px-3 py-1 text-sm rounded-full bg-red-100 text-red-700'; badge.textContent = 'Tempo excedido!'; }
+        } else if (tempoTotal > tempoEstimado * 0.8) {
+            display.className = 'text-5xl font-mono font-bold text-yellow-600';
+            if (badge) { badge.className = 'px-3 py-1 text-sm rounded-full bg-yellow-100 text-yellow-700'; }
+        } else {
+            display.className = 'text-5xl font-mono font-bold text-gray-800';
+        }
+    }
+}
+
+function atualizarStatusBadge(status) {
+    const badge = document.getElementById('status-badge');
+    const configs = {
+        'concluido': { bg: 'bg-green-100', text: 'text-green-800', label: 'Concluído' },
+        'dependente': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Aguardando' },
+        'em_andamento': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Em Andamento' },
+        'pendente': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Pendente' }
+    };
+    const cfg = configs[status] || configs['pendente'];
+    badge.innerHTML = `<span class="px-3 py-1 ${cfg.bg} ${cfg.text} rounded-full text-sm font-medium">${cfg.label}</span>`;
+}
+
+function iniciarTimer() {
+    fetch(`/demanda/${demandaId}/timer/iniciar/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        timerAtivo = true;
+        timerInicio = new Date().toISOString();
+        tempoBase = data.tempo_total;
+        document.getElementById('btn-iniciar').classList.add('hidden');
+        document.getElementById('btn-pausar').classList.remove('hidden');
+        atualizarStatusBadge(data.demanda_status);
+        iniciarContagem();
+    });
+}
+
+function pausarTimer() {
+    fetch(`/demanda/${demandaId}/timer/pausar/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        timerAtivo = false;
+        timerInicio = null;
+        tempoBase = data.tempo_total;
+        document.getElementById('btn-pausar').classList.add('hidden');
+        document.getElementById('btn-iniciar').classList.remove('hidden');
+        atualizarStatusBadge(data.demanda_status);
+        pararContagem();
+        atualizarDisplay();
+    });
+}
+
+function iniciarContagem() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(atualizarDisplay, 1000);
+}
+
+function pararContagem() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+if (timerAtivo) { iniciarContagem(); }
+
+// Editar Timer (Gestor)
+function abrirModalEditarTimer() {
+    const modal = document.getElementById('modal-editar-timer');
+    if (!modal) return;
+
+    // Calcular tempo atual
+    let tempoTotal = tempoBase;
+    if (timerAtivo && timerInicio) {
+        const inicio = new Date(timerInicio);
+        const agora = new Date();
+        tempoTotal += Math.floor((agora - inicio) / 1000);
+    }
+
+    const horas = Math.floor(tempoTotal / 3600);
+    const minutos = Math.floor((tempoTotal % 3600) / 60);
+    const segundos = tempoTotal % 60;
+
+    document.getElementById('timer-horas').value = horas;
+    document.getElementById('timer-minutos').value = minutos;
+    document.getElementById('timer-segundos').value = segundos;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function fecharModalEditarTimer() {
+    const modal = document.getElementById('modal-editar-timer');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function zerarTimer() {
+    document.getElementById('timer-horas').value = 0;
+    document.getElementById('timer-minutos').value = 0;
+    document.getElementById('timer-segundos').value = 0;
+}
+
+function salvarTimer() {
+    const horas = parseInt(document.getElementById('timer-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('timer-minutos').value) || 0;
+    const segundos = parseInt(document.getElementById('timer-segundos').value) || 0;
+    const totalSegundos = (horas * 3600) + (minutos * 60) + segundos;
+
+    fetch(`/demanda/${demandaId}/timer/editar/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempo_segundos: totalSegundos })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            timerAtivo = false;
+            timerInicio = null;
+            tempoBase = data.tempo_total;
+            document.getElementById('btn-pausar')?.classList.add('hidden');
+            document.getElementById('btn-iniciar')?.classList.remove('hidden');
+            pararContagem();
+            atualizarDisplay();
+            fecharModalEditarTimer();
+        } else {
+            alert(data.error || 'Erro ao salvar');
+        }
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+
+// Status
+function mudarStatus(novoStatus) {
+    if (novoStatus === 'concluido' && !confirm('Tem certeza que deseja concluir esta demanda?')) return;
+
+    fetch(`/demanda/${demandaId}/status/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: novoStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+function reabrirDemanda() {
+    if (!confirm('Deseja reabrir esta demanda?')) return;
+
+    fetch(`/demanda/${demandaId}/reabrir/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+// Dependência
+let tipoDep = 'interno';
+
+// Autocomplete pessoa externa
+(function() {
+    let debounceTimer;
+    const input = document.getElementById('nome-externo');
+    const dropdown = document.getElementById('autocomplete-externo');
+
+    input.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (q.length < 1) { dropdown.classList.add('hidden'); return; }
+        debounceTimer = setTimeout(() => {
+            fetch(`/pessoas-externas/?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.pessoas.length === 0) { dropdown.classList.add('hidden'); return; }
+                dropdown.innerHTML = '';
+                data.pessoas.forEach(p => {
+                    const emp = p.empresa ? ` <span class="text-gray-400">· ${p.empresa}</span>` : '';
+                    const tel = p.telefone ? ` <span class="text-xs text-gray-400">${p.telefone}</span>` : '';
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2.5 hover:bg-orange-50 cursor-pointer border-b last:border-0 transition';
+                    item.innerHTML = `<span class="font-medium text-gray-800">${p.nome}</span>${emp}${tel}`;
+                    item.addEventListener('click', () => {
+                        input.value = p.nome;
+                        document.getElementById('telefone-externo').value = p.telefone || '';
+                        dropdown.classList.add('hidden');
+                    });
+                    dropdown.appendChild(item);
+                });
+                dropdown.classList.remove('hidden');
+            });
+        }, 250);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+})();
+
+function setTipoDep(tipo) {
+    tipoDep = tipo;
+    document.getElementById('dep-interno').classList.toggle('hidden', tipo !== 'interno');
+    document.getElementById('dep-externo').classList.toggle('hidden', tipo !== 'externo');
+    document.getElementById('btn-dep-interno').className = tipo === 'interno'
+        ? 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-indigo-500 bg-indigo-50 text-indigo-700 font-medium'
+        : 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 text-gray-600 hover:border-gray-400';
+    document.getElementById('btn-dep-externo').className = tipo === 'externo'
+        ? 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-orange-500 bg-orange-50 text-orange-700 font-medium'
+        : 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 text-gray-600 hover:border-gray-400';
+}
+
+function abrirModalDependencia() {
+    const modal = document.getElementById('modal-dependencia');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    fetch('/pessoas/')
+    .then(response => response.json())
+    .then(data => {
+        const select = document.getElementById('select-dependente');
+        select.innerHTML = '<option value="">Selecione uma pessoa...</option>';
+        data.pessoas.forEach(p => {
+            const cargo = p.cargo ? ` (${p.cargo})` : '';
+            select.innerHTML += `<option value="${p.id}">${p.nome}${cargo}</option>`;
+        });
+    });
+}
+
+function fecharModalDependencia() {
+    const modal = document.getElementById('modal-dependencia');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function salvarDependencia() {
+    const motivo = document.getElementById('motivo-dependencia').value;
+    let body = { motivo };
+
+    if (tipoDep === 'interno') {
+        const dependenteId = document.getElementById('select-dependente').value;
+        if (!dependenteId) { alert('Selecione uma pessoa'); return; }
+        body.dependente_id = dependenteId;
+    } else {
+        const nome = document.getElementById('nome-externo').value.trim();
+        if (!nome) { alert('Digite o nome da pessoa'); return; }
+        body.dependente_externo = nome;
+        body.telefone_externo = document.getElementById('telefone-externo').value.trim();
+    }
+
+    fetch(`/demanda/${demandaId}/dependencia/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') location.reload();
+    });
+}
+
+function cobrarExterno(nome, telefone, motivo) {
+    if (!confirm(`Enviar cobrança via WhatsApp para ${nome}?`)) return;
+    fetch('/wapi/cobrar/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, telefone, motivo })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) alert('Cobrança enviada com sucesso!');
+        else alert('Erro ao enviar: ' + (data.error || 'Falha'));
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+
+function resolverDependencia() {
+    if (!confirm('A dependência foi resolvida?')) return;
+
+    fetch(`/demanda/${demandaId}/dependencia/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependente_id: null })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+// Subtarefas
+function atualizarProgresso(progresso) {
+    document.getElementById('progresso-texto').textContent = progresso + '%';
+    document.getElementById('progresso-barra').style.width = progresso + '%';
+}
+
+function adicionarSubtarefa() {
+    const input = document.getElementById('nova-subtarefa');
+    const titulo = input.value.trim();
+    if (!titulo) return;
+
+    fetch(`/demanda/${demandaId}/subtarefa/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: titulo })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const lista = document.getElementById('lista-subtarefas');
+            const semSubtarefas = document.getElementById('sem-subtarefas');
+            if (semSubtarefas) semSubtarefas.remove();
+
+            const li = document.createElement('li');
+            li.id = `subtarefa-${data.subtarefa.id}`;
+            li.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg group';
+            li.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <input type="checkbox" onchange="toggleSubtarefa(${data.subtarefa.id})"
+                           class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
+                    <span>${data.subtarefa.titulo}</span>
+                </div>
+                <button onclick="excluirSubtarefa(${data.subtarefa.id})"
+                        class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            `;
+            lista.appendChild(li);
+            input.value = '';
+            atualizarProgresso(data.progresso);
+        }
+    });
+}
+
+function toggleSubtarefa(id) {
+    fetch(`/demanda/subtarefa/${id}/toggle/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const li = document.getElementById(`subtarefa-${id}`);
+        const span = li.querySelector('span');
+        const checkbox = li.querySelector('input[type="checkbox"]');
+
+        if (data.concluida) {
+            span.classList.add('line-through', 'text-gray-400');
+            checkbox.checked = true;
+        } else {
+            span.classList.remove('line-through', 'text-gray-400');
+            checkbox.checked = false;
+        }
+        atualizarProgresso(data.progresso);
+    });
+}
+
+function excluirSubtarefa(id) {
+    if (!confirm('Excluir este item?')) return;
+
+    fetch(`/demanda/subtarefa/${id}/excluir/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById(`subtarefa-${id}`).remove();
+        atualizarProgresso(data.progresso);
+    });
+}
+
+// Anotações com Editor Rico (Quill)
+let saveTimeout = null;
+const statusSalvamento = document.getElementById('status-salvamento');
+const editorContainer = document.getElementById('editor-anotacoes');
+let quill = null;
+
+if (editorContainer) {
+    // Pegar conteúdo inicial
+    const conteudoInicial = document.getElementById('editor-content');
+    const htmlInicial = conteudoInicial ? conteudoInicial.innerHTML : '';
+    if (conteudoInicial) conteudoInicial.remove();
+
+    // Carregar Quill.js
+    const script = document.createElement('script');
+    script.src = 'https://cdn.quilljs.com/1.3.7/quill.min.js';
+    script.onload = function() {
+        quill = new Quill('#editor-anotacoes', {
+            theme: 'snow',
+            placeholder: 'Digite suas anotações aqui...',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Definir conteúdo inicial
+        if (htmlInicial && htmlInicial.trim()) {
+            quill.root.innerHTML = htmlInicial;
+        }
+
+        // Auto-save ao digitar
+        quill.on('text-change', function() {
+            statusSalvamento.textContent = 'Salvando...';
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(function() {
+                const html = quill.root.innerHTML;
+                fetch(`/demanda/${demandaId}/anotacao/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ anotacoes: html })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    statusSalvamento.textContent = 'Salvo';
+                    setTimeout(() => { statusSalvamento.textContent = ''; }, 2000);
+                })
+                .catch(error => { statusSalvamento.textContent = 'Erro ao salvar'; });
+            }, 1000);
+        });
+    };
+    document.head.appendChild(script);
+}
+
+// Comentários
+function adicionarComentario() {
+    const input = document.getElementById('novo-comentario');
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    fetch(`/demanda/${demandaId}/comentario/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texto: texto })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const lista = document.getElementById('lista-comentarios');
+            const vazio = lista.querySelector('p.text-gray-400');
+            if (vazio) vazio.remove();
+
+            const div = document.createElement('div');
+            div.className = 'p-3 bg-gray-50 rounded-lg';
+            div.innerHTML = `
+                <div class="flex justify-between text-sm text-gray-500 mb-1">
+                    <span class="font-medium text-gray-700">${data.comentario.autor}</span>
+                    <span>${data.comentario.criado_em}</span>
+                </div>
+                <p class="text-gray-600">${data.comentario.texto}</p>
+            `;
+            lista.appendChild(div);
+            input.value = '';
+        }
+    });
+}
+
+// Anexos
+function uploadAnexo() {
+    const input = document.getElementById('input-anexo');
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('arquivo', file);
+
+    fetch(`/demanda/${demandaId}/anexo/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+function excluirAnexo(id) {
+    if (!confirm('Excluir este anexo?')) return;
+
+    fetch(`/anexo/${id}/excluir/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

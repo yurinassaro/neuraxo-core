@@ -1,0 +1,132 @@
+{% extends "admin/change_form.html" %}
+
+{% block admin_change_form_document_ready %}
+{{ block.super }}
+<script>
+(function() {
+    var INITIALIZED = false;
+
+    function initSortable() {
+        if (INITIALIZED) return;
+
+        var tbody = null;
+        var tables = document.querySelectorAll('.inline-related table');
+        for (var i = 0; i < tables.length; i++) {
+            var t = tables[i].querySelector('tbody');
+            if (t && t.querySelector('input[name$="-ordem"]')) {
+                tbody = t;
+                break;
+            }
+        }
+        if (!tbody) return;
+
+        INITIALIZED = true;
+        setupRows(tbody);
+        setupDrag(tbody);
+    }
+
+    function setupRows(tbody) {
+        var rows = tbody.querySelectorAll('tr:not(.empty-form)');
+        rows.forEach(function(row) {
+            if (row.dataset.sortable) return;
+            if (!row.querySelector('input')) return;
+
+            row.dataset.sortable = '1';
+            row.setAttribute('draggable', 'true');
+
+            // Add handle as first element in first td
+            var firstTd = row.querySelector('td');
+            if (firstTd && !firstTd.querySelector('.drag-handle')) {
+                var handle = document.createElement('span');
+                handle.className = 'drag-handle';
+                handle.style.cssText = 'cursor: grab; color: #417690; font-size: 20px; margin-right: 8px; user-select: none; display: inline-block;';
+                handle.innerHTML = '&#9776;';
+                handle.title = 'Arrastar para reordenar';
+                firstTd.insertBefore(handle, firstTd.firstChild);
+            }
+        });
+    }
+
+    function setupDrag(tbody) {
+        var dragRow = null;
+
+        tbody.addEventListener('dragstart', function(e) {
+            var row = e.target.closest('tr');
+            if (!row || row.classList.contains('empty-form')) return;
+            dragRow = row;
+            setTimeout(function() { dragRow.style.opacity = '0.4'; }, 0);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        tbody.addEventListener('dragover', function(e) {
+            if (!dragRow) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            var target = e.target.closest('tr');
+            if (!target || target === dragRow || target.classList.contains('empty-form')) return;
+
+            var rect = target.getBoundingClientRect();
+            var mid = rect.top + rect.height / 2;
+            if (e.clientY < mid) {
+                tbody.insertBefore(dragRow, target);
+            } else {
+                tbody.insertBefore(dragRow, target.nextSibling);
+            }
+        });
+
+        tbody.addEventListener('drop', function(e) {
+            e.preventDefault();
+        });
+
+        tbody.addEventListener('dragend', function() {
+            if (dragRow) {
+                dragRow.style.opacity = '1';
+                dragRow = null;
+            }
+            updateOrdem(tbody);
+        });
+    }
+
+    function updateOrdem(tbody) {
+        var rows = tbody.querySelectorAll('tr:not(.empty-form)');
+        var idx = 0;
+        rows.forEach(function(row) {
+            var input = row.querySelector('input[name$="-ordem"]');
+            if (input) {
+                input.value = idx++;
+            }
+        });
+    }
+
+    // Add row handler
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.add-row')) {
+            setTimeout(function() {
+                var tables = document.querySelectorAll('.inline-related table');
+                for (var i = 0; i < tables.length; i++) {
+                    var t = tables[i].querySelector('tbody');
+                    if (t && t.querySelector('input[name$="-ordem"]')) {
+                        setupRows(t);
+                        break;
+                    }
+                }
+            }, 200);
+        }
+    });
+
+    setTimeout(initSortable, 200);
+})();
+</script>
+<style>
+    .inline-related table input[type="text"],
+    .inline-related table input[type="number"] { width: 100% !important; padding: 8px !important; }
+    .inline-related table td { padding: 12px 8px !important; vertical-align: middle !important; }
+    .inline-related table tr { border-bottom: 1px solid #ddd; }
+    .inline-related table td > p.help { display: none !important; }
+    /* Hide the "Original" labels that duplicate input values */
+    .inline-related td.original p,
+    .inline-related .original p,
+    .tabular .original p,
+    .inline-related h3 { display: none !important; }
+</style>
+{% endblock %}

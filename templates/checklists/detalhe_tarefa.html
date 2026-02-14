@@ -1,0 +1,976 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ item.template.titulo }} - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'minhas_tarefas' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Voltar para tarefas</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Coluna Principal -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Cabeçalho da Tarefa -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
+                <div class="flex-1 min-w-0">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ item.template.workspace.nome }}</span>
+                    <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words">{{ item.template.titulo }}</h1>
+                </div>
+                <!-- Status Badge -->
+                <div id="status-badge">
+                    {% if item.status == 'concluido' %}
+                    <span class="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm font-medium whitespace-nowrap">Concluído</span>
+                    {% elif item.status == 'atrasado' %}
+                    <span class="px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-sm font-medium whitespace-nowrap">Atrasado</span>
+                    {% elif item.status == 'em_andamento' %}
+                    <span class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium whitespace-nowrap">Em Andamento</span>
+                    {% elif item.status == 'dependente' %}
+                    <span class="px-3 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium whitespace-nowrap">Aguardando</span>
+                    {% else %}
+                    <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-sm font-medium whitespace-nowrap">Pendente</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% with descricao=item.descricao|default:item.template.descricao %}
+            {% if descricao %}
+            <p class="text-gray-600 dark:text-gray-300 mb-4">{{ descricao }}</p>
+            {% endif %}
+            {% endwith %}
+
+            {% with processo=item.processo|default:item.template.processo %}
+            {% if processo %}
+            <!-- Processo / Instruções -->
+            <div class="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <h3 class="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    Como Executar
+                </h3>
+                <div class="text-sm text-blue-900 dark:text-blue-200 whitespace-pre-wrap">{{ processo }}</div>
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Alerta de Dependência -->
+            {% if item.status == 'dependente' %}
+            <div id="alerta-dependencia" class="mb-4 p-4 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                <div class="flex items-center space-x-2 text-orange-800 dark:text-orange-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">Aguardando: {% if item.dependente_de %}{{ item.dependente_de.nome }}{% elif item.dependente_externo %}{{ item.dependente_externo }} <span class="text-xs bg-orange-200 dark:bg-orange-800 px-1 rounded">externo</span>{% else %}alguém{% endif %}</span>
+                    {% if item.telefone_dependente_externo %}
+                    <button onclick="cobrarExterno('{{ item.dependente_externo }}', '{{ item.telefone_dependente_externo }}', '{{ item.motivo_dependencia }}')"
+                       class="inline-flex items-center px-2 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 ml-2">
+                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                        Cobrar via WhatsApp
+                    </button>
+                    <a href="https://wa.me/55{{ item.telefone_dependente_externo }}" target="_blank"
+                       class="inline-flex items-center px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 ml-1">
+                        Abrir Chat
+                    </a>
+                    {% endif %}
+                </div>
+                {% if item.motivo_dependencia %}
+                <p class="text-sm text-orange-700 dark:text-orange-400 mt-1">{{ item.motivo_dependencia }}</p>
+                {% endif %}
+                <button onclick="resolverDependencia()" class="mt-2 text-sm text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 underline">
+                    Dependência resolvida? Clique aqui
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- Barra de Progresso -->
+            <div class="mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600 dark:text-gray-400">Progresso</span>
+                    <span id="progresso-texto" class="font-medium text-gray-800 dark:text-gray-200">{{ item.get_progresso }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                    <div id="progresso-barra" class="bg-indigo-600 h-3 rounded-full transition-all duration-300" style="width: {{ item.get_progresso }}%"></div>
+                </div>
+            </div>
+
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                <p>Prazo: {{ item.data_limite|date:"d/m/Y H:i" }}</p>
+                {% if item.iniciado_em %}
+                <p class="text-blue-600 dark:text-blue-400">Iniciado em: {{ item.iniciado_em|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+                {% if item.concluido_em %}
+                <p class="text-green-600 dark:text-green-400">Concluído em: {{ item.concluido_em|date:"d/m/Y H:i" }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Controle de Status -->
+        {% if item.status != 'concluido' %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Alterar Status</h2>
+
+            <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <button onclick="mudarStatus('pendente')"
+                        class="px-3 py-2 text-sm rounded-lg border-2 {% if item.status == 'pendente' %}border-gray-500 bg-gray-100 dark:bg-gray-700{% else %}border-gray-200 dark:border-gray-600 hover:border-gray-400{% endif %} text-gray-800 dark:text-gray-200">
+                    Pendente
+                </button>
+                <button onclick="mudarStatus('em_andamento')"
+                        class="px-3 py-2 text-sm rounded-lg border-2 {% if item.status == 'em_andamento' %}border-blue-500 bg-blue-100 dark:bg-blue-900{% else %}border-gray-200 dark:border-gray-600 hover:border-blue-400{% endif %} text-gray-800 dark:text-gray-200">
+                    Em Andamento
+                </button>
+                <button onclick="abrirModalDependencia()"
+                        class="px-3 py-2 text-sm rounded-lg border-2 {% if item.status == 'dependente' %}border-orange-500 bg-orange-100 dark:bg-orange-900{% else %}border-gray-200 dark:border-gray-600 hover:border-orange-400{% endif %} text-gray-800 dark:text-gray-200">
+                    Aguardando
+                </button>
+                <button onclick="mudarStatus('concluido')"
+                        class="px-3 py-2 text-sm rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-green-400 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                    Concluir
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Timer -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <div class="flex items-center gap-2">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Tempo de Execução</h2>
+                    {% if request.user.is_superuser or pessoa.is_gestor %}
+                    <button onclick="abrirModalEditarTimer()" class="text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400" title="Editar timer manualmente">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                </div>
+                {% if item.template.tempo_estimado %}
+                <span id="tempo-estimado-badge" class="px-3 py-1 text-sm rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 self-start sm:self-auto">
+                    Estimado: {{ item.template.get_tempo_estimado_display }}
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="flex items-center justify-center">
+                <div id="timer-display" class="text-3xl sm:text-5xl font-mono font-bold text-gray-800 dark:text-white">
+                    {{ item.get_tempo_formatado }}
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-center gap-3 sm:space-x-4 mt-6">
+                {% if item.status != 'concluido' %}
+                <button id="btn-iniciar" onclick="iniciarTimer()"
+                        class="{% if item.timer_ativo %}hidden{% endif %} px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Iniciar Timer</span>
+                </button>
+
+                <button id="btn-pausar" onclick="pausarTimer()"
+                        class="{% if not item.timer_ativo %}hidden{% endif %} px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-medium flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Pausar</span>
+                </button>
+                {% else %}
+                <div class="text-green-600 dark:text-green-400 font-medium">
+                    Tarefa concluída em {{ item.get_tempo_formatado }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Subtarefas / Checklist -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Checklist</h2>
+                {% if item.status != 'concluido' and item.template.subtarefas_template.exists %}
+                <button onclick="sincronizarSubtarefas()" class="text-xs px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800">
+                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Sincronizar do Template
+                </button>
+                {% endif %}
+            </div>
+
+            {% if item.status != 'concluido' %}
+            <div class="flex space-x-2 mb-4">
+                <input type="text" id="nova-subtarefa" placeholder="Adicionar item ao checklist..."
+                       class="flex-1 px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                       onkeypress="if(event.key === 'Enter') adicionarSubtarefa()">
+                <button onclick="adicionarSubtarefa()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                    Adicionar
+                </button>
+            </div>
+            {% endif %}
+
+            <ul id="lista-subtarefas" class="space-y-2">
+                {% for sub in item.subtarefas.all %}
+                <li id="subtarefa-{{ sub.id }}" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group">
+                    <div class="flex items-center space-x-3">
+                        <input type="checkbox" {% if sub.concluida %}checked{% endif %}
+                               onchange="toggleSubtarefa({{ sub.id }})"
+                               class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+                               {% if item.status == 'concluido' %}disabled{% endif %}>
+                        <span class="{% if sub.concluida %}line-through text-gray-400 dark:text-gray-500{% else %}text-gray-800 dark:text-gray-200{% endif %}">{{ sub.titulo }}</span>
+                    </div>
+                    {% if item.status != 'concluido' %}
+                    <button onclick="excluirSubtarefa({{ sub.id }})"
+                            class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                </li>
+                {% empty %}
+                <li id="sem-subtarefas" class="text-gray-400 dark:text-gray-500 text-center py-4">
+                    Nenhum item no checklist. {% if item.template.subtarefas_template.exists %}Clique em "Sincronizar do Template" ou adicione{% else %}Adicione{% endif %} itens acima.
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Anotações (Editor Rico) -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Anotações</h2>
+                <span id="status-salvamento" class="text-sm text-gray-400"></span>
+            </div>
+
+            {% if item.status != 'concluido' %}
+            <!-- Quill Editor -->
+            <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+            <style>
+                #editor-anotacoes { border: 1px solid #e5e7eb; border-radius: 0.5rem; }
+                .dark #editor-anotacoes { border-color: #4b5563; }
+                #editor-anotacoes .ql-toolbar { border: none; border-bottom: 1px solid #e5e7eb; border-radius: 0.5rem 0.5rem 0 0; background: #f9fafb; }
+                .dark #editor-anotacoes .ql-toolbar { border-bottom-color: #4b5563; background: #374151; }
+                .dark #editor-anotacoes .ql-toolbar button { color: #d1d5db; }
+                .dark #editor-anotacoes .ql-toolbar button:hover { color: #fff; }
+                .dark #editor-anotacoes .ql-toolbar .ql-stroke { stroke: #d1d5db; }
+                .dark #editor-anotacoes .ql-toolbar .ql-fill { fill: #d1d5db; }
+                .dark #editor-anotacoes .ql-toolbar .ql-picker-label { color: #d1d5db; }
+                #editor-anotacoes .ql-container { border: none; font-size: 14px; min-height: 200px; border-radius: 0 0 0.5rem 0.5rem; }
+                .dark #editor-anotacoes .ql-container { background: #1f2937; color: #e5e7eb; }
+                #editor-anotacoes .ql-editor { min-height: 200px; }
+                .dark #editor-anotacoes .ql-editor.ql-blank::before { color: #6b7280; }
+            </style>
+            <div id="editor-anotacoes">
+                <div id="editor-content">{{ item.anotacoes|safe }}</div>
+            </div>
+            {% else %}
+            <div class="prose prose-sm dark:prose-invert max-w-none p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">{{ item.anotacoes|safe }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Coluna Lateral -->
+    <div class="space-y-6">
+        <!-- Informações -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Informações</h2>
+            <dl class="space-y-3 text-sm">
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Responsável</dt>
+                    <dd class="font-medium text-gray-800 dark:text-white">{{ item.responsavel.nome }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Recorrência</dt>
+                    <dd class="font-medium text-gray-800 dark:text-white">{{ item.template.get_recorrencia_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Prioridade</dt>
+                    <dd>
+                        {% if item.template.prioridade == 3 %}
+                        <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs">Alta</span>
+                        {% elif item.template.prioridade == 2 %}
+                        <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-xs">Média</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">Baixa</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-gray-500 dark:text-gray-400">Data de Referência</dt>
+                    <dd class="font-medium text-gray-800 dark:text-white">{{ item.data_referencia|date:"d/m/Y" }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- Justificativa (para tarefas não concluídas) -->
+        {% if item.status != 'concluido' %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4 flex items-center space-x-2 text-gray-800 dark:text-white">
+                <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <span>Justificativa</span>
+            </h2>
+
+            {% if item.justificativa %}
+            <div class="p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ item.justificativa }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Você pode editar abaixo:</p>
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Se não conseguir concluir esta tarefa, informe o motivo:</p>
+            {% endif %}
+
+            <div class="mt-3">
+                <textarea id="justificativa" rows="3"
+                          class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                          placeholder="Ex: Sistema estava fora do ar, aguardando aprovação do gestor...">{{ item.justificativa }}</textarea>
+                <div class="flex justify-between items-center mt-2">
+                    <span id="status-justificativa" class="text-sm text-gray-400"></span>
+                    <button onclick="salvarJustificativa()"
+                            class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm">
+                        Salvar Justificativa
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Editar Timer (Admin/Gestor) -->
+{% if request.user.is_superuser or pessoa.is_gestor %}
+<div id="modal-editar-timer" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Editar Tempo de Execução</h3>
+        <div class="space-y-4">
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Horas</label>
+                    <input type="number" id="timer-horas" min="0" max="999" value="0"
+                           class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center text-lg">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Minutos</label>
+                    <input type="number" id="timer-minutos" min="0" max="59" value="0"
+                           class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center text-lg">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Segundos</label>
+                    <input type="number" id="timer-segundos" min="0" max="59" value="0"
+                           class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center text-lg">
+                </div>
+            </div>
+            <button onclick="zerarTimer()" class="w-full px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 text-sm">
+                Zerar Timer
+            </button>
+        </div>
+        <div class="flex justify-end space-x-2 mt-6">
+            <button onclick="fecharModalEditarTimer()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                Cancelar
+            </button>
+            <button onclick="salvarTimer()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal de Dependência -->
+<div id="modal-dependencia" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Marcar como Dependente</h3>
+
+        <div class="space-y-4">
+            <!-- Tipo: interno ou externo -->
+            <div class="flex space-x-2 mb-2">
+                <button type="button" onclick="setTipoDep('interno')" id="btn-dep-interno"
+                        class="flex-1 px-3 py-2 text-sm rounded-lg border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium">
+                    Equipe
+                </button>
+                <button type="button" onclick="setTipoDep('externo')" id="btn-dep-externo"
+                        class="flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400">
+                    Pessoa Externa
+                </button>
+            </div>
+
+            <!-- Interno -->
+            <div id="dep-interno">
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">De quem você depende?</label>
+                <select id="select-dependente" class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+
+            <!-- Externo -->
+            <div id="dep-externo" class="hidden space-y-3">
+                <div class="relative">
+                    <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Nome da pessoa</label>
+                    <input type="text" id="nome-externo" placeholder="Digite para buscar..."
+                           autocomplete="off"
+                           class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
+                    <div id="autocomplete-externo" class="absolute z-50 w-full bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">WhatsApp (opcional)</label>
+                    <input type="text" id="telefone-externo" placeholder="Ex: 11999999999"
+                           class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Motivo (opcional)</label>
+                <input type="text" id="motivo-dependencia" placeholder="Ex: Aguardando envio do contrato"
+                       class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 mt-6">
+            <button onclick="fecharModalDependencia()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                Cancelar
+            </button>
+            <button onclick="salvarDependencia()" class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+                Marcar como Dependente
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+const itemId = {{ item.id }};
+const csrfToken = '{{ csrf_token }}';
+let timerInterval = null;
+let tempoBase = {{ item.get_tempo_total }};
+let timerAtivo = {{ item.timer_ativo|yesno:"true,false" }};
+let timerInicio = {% if item.timer_inicio %}'{{ item.timer_inicio.isoformat }}'{% else %}null{% endif %};
+let tempoEstimado = {{ item.template.tempo_estimado }} * 60; // em segundos
+
+// ===== Timer =====
+function formatarTempo(segundos) {
+    const horas = Math.floor(segundos / 3600);
+    const minutos = Math.floor((segundos % 3600) / 60);
+    const segs = segundos % 60;
+    if (horas > 0) {
+        return `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+    }
+    return `${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
+}
+
+function atualizarDisplay() {
+    let tempoTotal = tempoBase;
+    if (timerAtivo && timerInicio) {
+        const inicio = new Date(timerInicio);
+        const agora = new Date();
+        const diff = Math.floor((agora - inicio) / 1000);
+        tempoTotal += diff;
+    }
+    const display = document.getElementById('timer-display');
+    const isDark = document.documentElement.classList.contains('dark');
+    display.textContent = formatarTempo(tempoTotal);
+    if (tempoEstimado > 0) {
+        const badge = document.getElementById('tempo-estimado-badge');
+        if (tempoTotal > tempoEstimado) {
+            display.className = 'text-3xl sm:text-5xl font-mono font-bold text-red-600';
+            if (badge) { badge.className = 'px-3 py-1 text-sm rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'; badge.textContent = 'Tempo excedido!'; }
+        } else if (tempoTotal > tempoEstimado * 0.8) {
+            display.className = 'text-3xl sm:text-5xl font-mono font-bold text-yellow-600';
+            if (badge) { badge.className = 'px-3 py-1 text-sm rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'; }
+        } else {
+            display.className = 'text-3xl sm:text-5xl font-mono font-bold text-gray-800 dark:text-white';
+        }
+    }
+}
+
+function atualizarStatusBadge(status) {
+    const badge = document.getElementById('status-badge');
+    if (!badge) return;
+    const configs = {
+        'concluido': { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-800 dark:text-green-200', label: 'Concluído' },
+        'dependente': { bg: 'bg-orange-100 dark:bg-orange-900', text: 'text-orange-800 dark:text-orange-200', label: 'Aguardando' },
+        'em_andamento': { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-800 dark:text-blue-200', label: 'Em Andamento' },
+        'atrasado': { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-800 dark:text-red-200', label: 'Atrasado' },
+        'pendente': { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-200', label: 'Pendente' }
+    };
+    const cfg = configs[status] || configs['pendente'];
+    badge.innerHTML = `<span class="px-3 py-1 ${cfg.bg} ${cfg.text} rounded-full text-sm font-medium">${cfg.label}</span>`;
+}
+
+function iniciarTimer() {
+    fetch(`/timer/iniciar/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        timerAtivo = true;
+        timerInicio = new Date().toISOString();
+        tempoBase = data.tempo_total;
+        document.getElementById('btn-iniciar').classList.add('hidden');
+        document.getElementById('btn-pausar').classList.remove('hidden');
+        atualizarStatusBadge(data.item_status);
+        iniciarContagem();
+    });
+}
+
+function pausarTimer() {
+    fetch(`/timer/pausar/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        timerAtivo = false;
+        timerInicio = null;
+        tempoBase = data.tempo_total;
+        document.getElementById('btn-pausar').classList.add('hidden');
+        document.getElementById('btn-iniciar').classList.remove('hidden');
+        atualizarStatusBadge(data.item_status);
+        pararContagem();
+        atualizarDisplay();
+    });
+}
+
+function iniciarContagem() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(atualizarDisplay, 1000);
+}
+
+function pararContagem() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+if (timerAtivo) { iniciarContagem(); }
+
+// ===== Editar Timer (Admin) =====
+function abrirModalEditarTimer() {
+    const modal = document.getElementById('modal-editar-timer');
+    if (!modal) return;
+
+    // Calcular tempo atual
+    let tempoTotal = tempoBase;
+    if (timerAtivo && timerInicio) {
+        const inicio = new Date(timerInicio);
+        const agora = new Date();
+        tempoTotal += Math.floor((agora - inicio) / 1000);
+    }
+
+    const horas = Math.floor(tempoTotal / 3600);
+    const minutos = Math.floor((tempoTotal % 3600) / 60);
+    const segundos = tempoTotal % 60;
+
+    document.getElementById('timer-horas').value = horas;
+    document.getElementById('timer-minutos').value = minutos;
+    document.getElementById('timer-segundos').value = segundos;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function fecharModalEditarTimer() {
+    const modal = document.getElementById('modal-editar-timer');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function zerarTimer() {
+    document.getElementById('timer-horas').value = 0;
+    document.getElementById('timer-minutos').value = 0;
+    document.getElementById('timer-segundos').value = 0;
+}
+
+function salvarTimer() {
+    const horas = parseInt(document.getElementById('timer-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('timer-minutos').value) || 0;
+    const segundos = parseInt(document.getElementById('timer-segundos').value) || 0;
+    const totalSegundos = (horas * 3600) + (minutos * 60) + segundos;
+
+    fetch(`/timer/editar/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempo_segundos: totalSegundos })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            timerAtivo = false;
+            timerInicio = null;
+            tempoBase = data.tempo_total;
+            document.getElementById('btn-pausar')?.classList.add('hidden');
+            document.getElementById('btn-iniciar')?.classList.remove('hidden');
+            pararContagem();
+            atualizarDisplay();
+            fecharModalEditarTimer();
+        } else {
+            alert(data.error || 'Erro ao salvar');
+        }
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+
+// ===== Status =====
+function mudarStatus(novoStatus) {
+    if (novoStatus === 'concluido' && !confirm('Tem certeza que deseja concluir esta tarefa?')) return;
+
+    fetch(`/status/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: novoStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+// ===== Dependência =====
+let tipoDep = 'interno';
+
+// Autocomplete pessoa externa
+(function() {
+    let debounceTimer;
+    const input = document.getElementById('nome-externo');
+    const dropdown = document.getElementById('autocomplete-externo');
+
+    input.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (q.length < 1) { dropdown.classList.add('hidden'); return; }
+        debounceTimer = setTimeout(() => {
+            fetch(`/pessoas-externas/?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.pessoas.length === 0) { dropdown.classList.add('hidden'); return; }
+                dropdown.innerHTML = '';
+                data.pessoas.forEach(p => {
+                    const emp = p.empresa ? ` <span class="text-gray-400 dark:text-gray-500">· ${p.empresa}</span>` : '';
+                    const tel = p.telefone ? ` <span class="text-xs text-gray-400 dark:text-gray-500">${p.telefone}</span>` : '';
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2.5 hover:bg-orange-50 dark:hover:bg-orange-900/30 cursor-pointer border-b dark:border-gray-700 last:border-0 transition';
+                    item.innerHTML = `<span class="font-medium text-gray-800 dark:text-white">${p.nome}</span>${emp}${tel}`;
+                    item.addEventListener('click', () => {
+                        input.value = p.nome;
+                        document.getElementById('telefone-externo').value = p.telefone || '';
+                        dropdown.classList.add('hidden');
+                    });
+                    dropdown.appendChild(item);
+                });
+                dropdown.classList.remove('hidden');
+            });
+        }, 250);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+})();
+
+function setTipoDep(tipo) {
+    tipoDep = tipo;
+    document.getElementById('dep-interno').classList.toggle('hidden', tipo !== 'interno');
+    document.getElementById('dep-externo').classList.toggle('hidden', tipo !== 'externo');
+    document.getElementById('btn-dep-interno').className = tipo === 'interno'
+        ? 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+        : 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400';
+    document.getElementById('btn-dep-externo').className = tipo === 'externo'
+        ? 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-orange-500 bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 font-medium'
+        : 'flex-1 px-3 py-2 text-sm rounded-lg border-2 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-400';
+}
+
+function abrirModalDependencia() {
+    const modal = document.getElementById('modal-dependencia');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    fetch('/pessoas/')
+    .then(response => response.json())
+    .then(data => {
+        const select = document.getElementById('select-dependente');
+        select.innerHTML = '<option value="">Selecione uma pessoa...</option>';
+        data.pessoas.forEach(p => {
+            const cargo = p.cargo ? ` (${p.cargo})` : '';
+            select.innerHTML += `<option value="${p.id}">${p.nome}${cargo}</option>`;
+        });
+    });
+}
+
+function fecharModalDependencia() {
+    const modal = document.getElementById('modal-dependencia');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function salvarDependencia() {
+    const motivo = document.getElementById('motivo-dependencia').value;
+    let body = { motivo };
+
+    if (tipoDep === 'interno') {
+        const dependenteId = document.getElementById('select-dependente').value;
+        if (!dependenteId) { alert('Selecione uma pessoa'); return; }
+        body.dependente_id = dependenteId;
+    } else {
+        const nome = document.getElementById('nome-externo').value.trim();
+        if (!nome) { alert('Digite o nome da pessoa'); return; }
+        body.dependente_externo = nome;
+        body.telefone_externo = document.getElementById('telefone-externo').value.trim();
+    }
+
+    fetch(`/dependencia/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') location.reload();
+    });
+}
+
+function cobrarExterno(nome, telefone, motivo) {
+    if (!confirm(`Enviar cobrança via WhatsApp para ${nome}?`)) return;
+
+    fetch('/wapi/cobrar/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, telefone, motivo })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Cobrança enviada com sucesso!');
+        } else {
+            alert('Erro ao enviar: ' + (data.error || 'Falha'));
+        }
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+
+function resolverDependencia() {
+    if (!confirm('A dependência foi resolvida?')) return;
+
+    fetch(`/dependencia/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependente_id: null })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        }
+    });
+}
+
+// ===== Subtarefas =====
+function atualizarProgresso(progresso) {
+    document.getElementById('progresso-texto').textContent = progresso + '%';
+    document.getElementById('progresso-barra').style.width = progresso + '%';
+}
+
+function sincronizarSubtarefas() {
+    fetch(`/subtarefa/sincronizar/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            if (data.adicionadas > 0) {
+                alert(`${data.adicionadas} subtarefa(s) sincronizada(s) do template!`);
+                location.reload();
+            } else {
+                alert('Todas as subtarefas do template já estão presentes.');
+            }
+        }
+    })
+    .catch(() => alert('Erro ao sincronizar'));
+}
+
+function adicionarSubtarefa() {
+    const input = document.getElementById('nova-subtarefa');
+    const titulo = input.value.trim();
+    if (!titulo) return;
+
+    fetch(`/subtarefa/adicionar/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: titulo })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const lista = document.getElementById('lista-subtarefas');
+            const semSubtarefas = document.getElementById('sem-subtarefas');
+            if (semSubtarefas) semSubtarefas.remove();
+
+            const li = document.createElement('li');
+            li.id = `subtarefa-${data.subtarefa.id}`;
+            li.className = 'flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg group';
+            li.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <input type="checkbox" onchange="toggleSubtarefa(${data.subtarefa.id})"
+                           class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
+                    <span class="text-gray-800 dark:text-gray-200">${data.subtarefa.titulo}</span>
+                </div>
+                <button onclick="excluirSubtarefa(${data.subtarefa.id})"
+                        class="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            `;
+            lista.appendChild(li);
+            input.value = '';
+            atualizarProgresso(data.progresso);
+        }
+    });
+}
+
+function toggleSubtarefa(id) {
+    fetch(`/subtarefa/toggle/${id}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const li = document.getElementById(`subtarefa-${id}`);
+        const span = li.querySelector('span');
+        const checkbox = li.querySelector('input[type="checkbox"]');
+
+        if (data.concluida) {
+            span.classList.add('line-through', 'text-gray-400', 'dark:text-gray-500');
+            span.classList.remove('text-gray-800', 'dark:text-gray-200');
+            checkbox.checked = true;
+        } else {
+            span.classList.remove('line-through', 'text-gray-400', 'dark:text-gray-500');
+            span.classList.add('text-gray-800', 'dark:text-gray-200');
+            checkbox.checked = false;
+        }
+        atualizarProgresso(data.progresso);
+    });
+}
+
+function excluirSubtarefa(id) {
+    if (!confirm('Excluir este item?')) return;
+
+    fetch(`/subtarefa/excluir/${id}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById(`subtarefa-${id}`).remove();
+        atualizarProgresso(data.progresso);
+
+        const lista = document.getElementById('lista-subtarefas');
+        if (lista.children.length === 0) {
+            lista.innerHTML = '<li id="sem-subtarefas" class="text-gray-400 dark:text-gray-500 text-center py-4">Nenhum item no checklist. Adicione itens acima.</li>';
+        }
+    });
+}
+
+// ===== Anotações com Editor Rico (Quill) =====
+let saveTimeout = null;
+const statusSalvamento = document.getElementById('status-salvamento');
+const editorContainer = document.getElementById('editor-anotacoes');
+let quill = null;
+
+if (editorContainer) {
+    // Pegar conteúdo inicial
+    const conteudoInicial = document.getElementById('editor-content');
+    const htmlInicial = conteudoInicial ? conteudoInicial.innerHTML : '';
+    if (conteudoInicial) conteudoInicial.remove();
+
+    // Carregar Quill.js
+    const script = document.createElement('script');
+    script.src = 'https://cdn.quilljs.com/1.3.7/quill.min.js';
+    script.onload = function() {
+        quill = new Quill('#editor-anotacoes', {
+            theme: 'snow',
+            placeholder: 'Digite suas anotações aqui... (salva automaticamente)',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Definir conteúdo inicial
+        if (htmlInicial && htmlInicial.trim()) {
+            quill.root.innerHTML = htmlInicial;
+        }
+
+        // Auto-save ao digitar
+        quill.on('text-change', function() {
+            statusSalvamento.textContent = 'Salvando...';
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(function() {
+                const html = quill.root.innerHTML;
+                fetch(`/salvar-anotacao/${itemId}/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ anotacoes: html })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    statusSalvamento.textContent = 'Salvo';
+                    setTimeout(() => { statusSalvamento.textContent = ''; }, 2000);
+                })
+                .catch(error => { statusSalvamento.textContent = 'Erro ao salvar'; });
+            }, 1000);
+        });
+    };
+    document.head.appendChild(script);
+}
+
+// ===== Justificativa =====
+function salvarJustificativa() {
+    const textarea = document.getElementById('justificativa');
+    const status = document.getElementById('status-justificativa');
+    const justificativa = textarea.value.trim();
+
+    if (!justificativa) {
+        alert('Digite uma justificativa');
+        return;
+    }
+
+    status.textContent = 'Salvando...';
+
+    fetch(`/justificativa/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ justificativa: justificativa })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            status.textContent = 'Justificativa salva!';
+            status.classList.remove('text-gray-400');
+            status.classList.add('text-green-600', 'dark:text-green-400');
+            setTimeout(() => {
+                status.textContent = '';
+                status.classList.remove('text-green-600', 'dark:text-green-400');
+                status.classList.add('text-gray-400');
+            }, 3000);
+        }
+    })
+    .catch(error => {
+        status.textContent = 'Erro ao salvar';
+        status.classList.remove('text-gray-400');
+        status.classList.add('text-red-600');
+    });
+}
+</script>
+{% endblock %}

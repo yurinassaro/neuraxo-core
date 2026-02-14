@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}Financeiro - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <h1 class="text-2xl font-bold text-gray-800">Financeiro</h1>
+        <div class="flex items-center gap-2">
+            <select id="empresa-select" onchange="location.href='?empresa='+this.value" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa and e.id == empresa.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+            <a href="{% url 'lancar' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">+ Lancar</a>
+        </div>
+    </div>
+    <!-- Menu de navegacao organizado -->
+    <div class="bg-white rounded-lg shadow p-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+            <!-- Operacional -->
+            <a href="{% url 'lista_lancamentos' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                Lancamentos
+            </a>
+            <a href="{% url 'contas_pagar' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                A Pagar
+            </a>
+            <a href="{% url 'contas_receber' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                A Receber
+            </a>
+            <a href="{% url 'fluxo_caixa' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                Fluxo Caixa
+            </a>
+            <a href="{% url 'alertas_financeiros' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                Alertas
+            </a>
+            <!-- Relatorios -->
+            <a href="{% url 'relatorio_financeiro' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Relatorio
+            </a>
+            <a href="{% url 'dre_simplificado' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                DRE
+            </a>
+            <a href="{% url 'relatorio_projeto' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                Por Projeto
+            </a>
+            <a href="{% url 'comparativo_mensal' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                Comparativo
+            </a>
+            <!-- Config -->
+            <a href="{% url 'gerenciar_metas' %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                Metas
+            </a>
+            <a href="{% url 'gerenciar_categorias' %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                Categorias
+            </a>
+            <a href="{% url 'contas_bancarias' %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                Bancos
+            </a>
+            <a href="{% url 'config_mercadopago' %}" class="flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                MP
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if not empresa %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+    <p class="text-yellow-700">Nenhuma empresa cadastrada.</p>
+</div>
+{% else %}
+
+<!-- Meta do Mês -->
+{% if meta %}
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-gray-700">Meta {{ meta.mes|stringformat:"02d" }}/{{ meta.ano }} - {{ empresa.nome }}</h2>
+        <span class="text-sm {% if meta.bateu_meta %}text-green-600 font-bold{% else %}text-gray-500{% endif %}">
+            {% if meta.bateu_meta %}META BATIDA!{% else %}{{ meta.get_progresso }}%{% endif %}
+        </span>
+    </div>
+    <div class="w-full bg-gray-200 rounded-full h-4 mb-3">
+        {% with p=meta.get_progresso %}
+        <div class="h-4 rounded-full {% if p >= 100 %}bg-green-500{% elif p >= 70 %}bg-yellow-500{% else %}bg-red-500{% endif %}" style="width: {{ p|floatformat:0 }}%; max-width: 100%;"></div>
+        {% endwith %}
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div>
+            <span class="text-gray-500">Meta</span>
+            <p class="font-semibold">R$ {{ meta.valor_meta|floatformat:2 }}</p>
+        </div>
+        <div>
+            <span class="text-gray-500">Realizado</span>
+            <p class="font-semibold">R$ {{ meta.get_realizado_mes|floatformat:2 }}</p>
+        </div>
+        <div>
+            <span class="text-gray-500">Meta diária restante</span>
+            <p class="font-semibold">R$ {{ meta.get_meta_diaria_restante|floatformat:2 }}</p>
+        </div>
+        <div>
+            <span class="text-gray-500">Projeção</span>
+            <p class="font-semibold">R$ {{ meta.get_projecao_mes|floatformat:2 }}</p>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-sm text-yellow-700">
+    Nenhuma meta definida para {{ hoje|date:"m/Y" }}. <a href="{% url 'gerenciar_metas' %}" class="underline font-semibold">Criar meta</a>
+</div>
+{% endif %}
+
+<!-- Cards Hoje e Mês -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Hoje -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3">HOJE - {{ hoje|date:"d/m/Y" }}</h3>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <p class="text-xs text-gray-400">Entradas</p>
+                <p class="text-lg font-bold text-green-600">R$ {{ entradas_hoje|floatformat:2 }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400">Saídas</p>
+                <p class="text-lg font-bold text-red-600">R$ {{ saidas_hoje|floatformat:2 }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400">Saldo</p>
+                <p class="text-lg font-bold {% if saldo_hoje >= 0 %}text-green-600{% else %}text-red-600{% endif %}">R$ {{ saldo_hoje|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+    <!-- Mês -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3">MÊS {{ hoje|date:"m/Y" }}</h3>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <p class="text-xs text-gray-400">Entradas</p>
+                <p class="text-lg font-bold text-green-600">R$ {{ entradas_mes|floatformat:2 }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400">Saídas</p>
+                <p class="text-lg font-bold text-red-600">R$ {{ saidas_mes|floatformat:2 }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400">Saldo</p>
+                <p class="text-lg font-bold {% if saldo_mes >= 0 %}text-green-600{% else %}text-red-600{% endif %}">R$ {{ saldo_mes|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Categorias do mês -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3">SAÍDAS POR CATEGORIA</h3>
+        {% for c in categorias_saida %}
+        <div class="flex items-center justify-between py-1.5 border-b last:border-0">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background:{{ c.categoria__cor|default:'#6b7280' }}"></span>
+                <span class="text-sm">{{ c.categoria__nome|default:"Sem categoria" }}</span>
+            </div>
+            <span class="text-sm font-semibold text-red-600">R$ {{ c.total|floatformat:2 }}</span>
+        </div>
+        {% empty %}
+        <p class="text-sm text-gray-400">Nenhuma saída no mês</p>
+        {% endfor %}
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3">ENTRADAS POR CATEGORIA</h3>
+        {% for c in categorias_entrada %}
+        <div class="flex items-center justify-between py-1.5 border-b last:border-0">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background:{{ c.categoria__cor|default:'#6b7280' }}"></span>
+                <span class="text-sm">{{ c.categoria__nome|default:"Sem categoria" }}</span>
+            </div>
+            <span class="text-sm font-semibold text-green-600">R$ {{ c.total|floatformat:2 }}</span>
+        </div>
+        {% empty %}
+        <p class="text-sm text-gray-400">Nenhuma entrada no mês</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Últimos lançamentos -->
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-500">ÚLTIMOS LANÇAMENTOS</h3>
+        <a href="{% url 'lista_lancamentos' %}{% if empresa %}?empresa={{ empresa.id }}{% endif %}" class="text-indigo-600 text-sm hover:underline">Ver todos</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="text-left text-gray-400 border-b">
+                <tr>
+                    <th class="py-2">Data</th>
+                    <th>Tipo</th>
+                    <th>Categoria</th>
+                    <th>Descrição</th>
+                    <th>Pessoa</th>
+                    <th class="text-right">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in ultimos %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ l.data|date:"d/m" }}</td>
+                    <td>
+                        <span class="{% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %} font-semibold">
+                            {% if l.tipo == 'entrada' %}+{% else %}-{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if l.categoria %}
+                        <span class="px-2 py-0.5 rounded text-xs text-white" style="background:{{ l.categoria.cor }}">{{ l.categoria.nome }}</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ l.descricao }}</td>
+                    <td class="text-gray-500">{{ l.pessoa.nome|default:"-" }}</td>
+                    <td class="text-right font-semibold {% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %}">
+                        R$ {{ l.valor|floatformat:2 }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="py-4 text-center text-gray-400">Nenhum lançamento</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

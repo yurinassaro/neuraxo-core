@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Comparativo Mensal - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Comparativo Mensal</h1>
+    <div class="flex items-center gap-3">
+        <form method="get" class="flex items-center gap-2">
+            <select name="empresa" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa.id == e.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+            <select name="meses" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="3" {% if meses_comparar == 3 %}selected{% endif %}>3 meses</option>
+                <option value="6" {% if meses_comparar == 6 %}selected{% endif %}>6 meses</option>
+                <option value="12" {% if meses_comparar == 12 %}selected{% endif %}>12 meses</option>
+            </select>
+        </form>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+{% if empresa %}
+
+<!-- Resumo do Periodo -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Total Receitas</p>
+        <p class="text-xl font-bold text-green-600">R$ {{ total_receitas|floatformat:2 }}</p>
+        <p class="text-xs text-gray-400">Media: R$ {{ media_receitas|floatformat:2 }}/mes</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Total Despesas</p>
+        <p class="text-xl font-bold text-red-600">R$ {{ total_despesas|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Lucro Acumulado</p>
+        <p class="text-xl font-bold {% if total_lucro >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+            R$ {{ total_lucro|floatformat:2 }}
+        </p>
+        <p class="text-xs text-gray-400">Media: R$ {{ media_lucro|floatformat:2 }}/mes</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Melhor Mes</p>
+        {% if melhor_mes %}
+        <p class="text-xl font-bold text-green-600">{{ melhor_mes.nome_mes }}/{{ melhor_mes.ano }}</p>
+        <p class="text-xs text-gray-400">Lucro: R$ {{ melhor_mes.lucro|floatformat:2 }}</p>
+        {% else %}
+        <p class="text-gray-400">-</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Grafico de Barras (CSS) -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Evolucao Mensal</h2>
+
+    {% if dados_meses %}
+    {% with max_val=dados_meses.0.receitas %}
+    <!-- Calcular valor maximo para escala -->
+    <div class="overflow-x-auto">
+        <div class="flex items-end gap-2 min-w-max" style="height: 200px;">
+            {% for mes in dados_meses %}
+            <div class="flex flex-col items-center w-20">
+                <!-- Barras -->
+                <div class="flex gap-1 items-end h-40">
+                    <!-- Receita -->
+                    <div class="w-6 bg-green-500 rounded-t transition-all"
+                         style="height: {% widthratio mes.receitas total_receitas 150 %}px; min-height: 4px;"
+                         title="Receitas: R$ {{ mes.receitas|floatformat:2 }}"></div>
+                    <!-- Despesa -->
+                    <div class="w-6 bg-red-500 rounded-t transition-all"
+                         style="height: {% widthratio mes.despesas total_receitas 150 %}px; min-height: 4px;"
+                         title="Despesas: R$ {{ mes.despesas|floatformat:2 }}"></div>
+                </div>
+                <!-- Label -->
+                <div class="text-center mt-2">
+                    <p class="text-xs font-medium text-gray-700">{{ mes.nome_mes }}</p>
+                    <p class="text-xs text-gray-400">{{ mes.ano }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endwith %}
+    <div class="flex items-center justify-center gap-6 mt-4 text-sm">
+        <div class="flex items-center gap-2">
+            <div class="w-4 h-4 bg-green-500 rounded"></div>
+            <span class="text-gray-600">Receitas</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-4 h-4 bg-red-500 rounded"></div>
+            <span class="text-gray-600">Despesas</span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Tabela Comparativa -->
+<div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+    <div class="p-4 border-b bg-gray-50">
+        <h2 class="text-lg font-semibold text-gray-700">Detalhamento por Mes</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="text-left text-gray-500 bg-gray-50 border-b">
+                <tr>
+                    <th class="py-3 px-4">Mes</th>
+                    <th class="py-3 px-4 text-right">Receitas</th>
+                    <th class="py-3 px-4 text-right">Var.</th>
+                    <th class="py-3 px-4 text-right">Despesas</th>
+                    <th class="py-3 px-4 text-right">Var.</th>
+                    <th class="py-3 px-4 text-right">Lucro</th>
+                    <th class="py-3 px-4 text-right">Margem</th>
+                    <th class="py-3 px-4 text-right">Meta</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for mes in dados_meses %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-3 px-4 font-medium text-gray-800">
+                        {{ mes.nome_mes }}/{{ mes.ano }}
+                    </td>
+                    <td class="py-3 px-4 text-right text-green-600 font-semibold">
+                        R$ {{ mes.receitas|floatformat:2 }}
+                    </td>
+                    <td class="py-3 px-4 text-right text-xs">
+                        {% if mes.var_receita %}
+                        <span class="{% if mes.var_receita >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if mes.var_receita >= 0 %}+{% endif %}{{ mes.var_receita|floatformat:1 }}%
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="py-3 px-4 text-right text-red-600 font-semibold">
+                        R$ {{ mes.despesas|floatformat:2 }}
+                    </td>
+                    <td class="py-3 px-4 text-right text-xs">
+                        {% if mes.var_despesa %}
+                        <span class="{% if mes.var_despesa <= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if mes.var_despesa >= 0 %}+{% endif %}{{ mes.var_despesa|floatformat:1 }}%
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="py-3 px-4 text-right font-bold {% if mes.lucro >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+                        R$ {{ mes.lucro|floatformat:2 }}
+                    </td>
+                    <td class="py-3 px-4 text-right {% if mes.margem >= 20 %}text-green-600{% elif mes.margem >= 0 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                        {{ mes.margem|floatformat:1 }}%
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        {% if mes.meta > 0 %}
+                        <div class="flex items-center justify-end gap-2">
+                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                <div class="h-2 rounded-full {% if mes.progresso_meta >= 100 %}bg-green-500{% elif mes.progresso_meta >= 70 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                                     style="width: {% if mes.progresso_meta > 100 %}100{% else %}{{ mes.progresso_meta|floatformat:0 }}{% endif %}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ mes.progresso_meta|floatformat:0 }}%</span>
+                        </div>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="py-8 text-center text-gray-400">
+                        Nenhum dado disponivel para o periodo selecionado.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Top Categorias por Mes -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {% for mes in dados_meses|slice:":3" %}
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3">{{ mes.nome_mes }}/{{ mes.ano }} - TOP CATEGORIAS</h3>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-xs text-gray-400 mb-2">Receitas</p>
+                {% for cat in mes.top_receitas %}
+                <div class="flex justify-between text-sm py-1">
+                    <span class="text-gray-700">{{ cat.categoria__nome|default:"Outros" }}</span>
+                    <span class="text-green-600 font-medium">R$ {{ cat.total|floatformat:0 }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400 text-xs">-</p>
+                {% endfor %}
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 mb-2">Despesas</p>
+                {% for cat in mes.top_despesas %}
+                <div class="flex justify-between text-sm py-1">
+                    <span class="text-gray-700">{{ cat.categoria__nome|default:"Outros" }}</span>
+                    <span class="text-red-600 font-medium">R$ {{ cat.total|floatformat:0 }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400 text-xs">-</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

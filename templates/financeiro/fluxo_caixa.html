@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block title %}Fluxo de Caixa Projetado - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Fluxo de Caixa Projetado</h1>
+    <div class="flex items-center gap-3">
+        <form method="get" class="flex items-center gap-2">
+            <select name="empresa" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa.id == e.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+            <select name="meses" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="1" {% if meses_frente == 1 %}selected{% endif %}>1 mes</option>
+                <option value="3" {% if meses_frente == 3 %}selected{% endif %}>3 meses</option>
+                <option value="6" {% if meses_frente == 6 %}selected{% endif %}>6 meses</option>
+                <option value="12" {% if meses_frente == 12 %}selected{% endif %}>12 meses</option>
+            </select>
+        </form>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+{% if empresa %}
+
+<!-- Resumo Geral -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Saldo Atual</p>
+        <p class="text-2xl font-bold {% if saldo_atual >= 0 %}text-blue-600{% else %}text-red-600{% endif %}">
+            R$ {{ saldo_atual|floatformat:2 }}
+        </p>
+        <p class="text-xs text-gray-400 mt-1">{{ contas_bancarias.count }} conta(s) ativa(s)</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Total a Receber</p>
+        <p class="text-2xl font-bold text-green-600">R$ {{ total_a_receber|floatformat:2 }}</p>
+        <p class="text-xs text-gray-400 mt-1">Proximos {{ meses_frente }} meses</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Total a Pagar</p>
+        <p class="text-2xl font-bold text-red-600">R$ {{ total_a_pagar|floatformat:2 }}</p>
+        <p class="text-xs text-gray-400 mt-1">Proximos {{ meses_frente }} meses</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <p class="text-sm text-gray-500">Saldo Projetado Final</p>
+        <p class="text-2xl font-bold {% if saldo_final_projetado >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+            R$ {{ saldo_final_projetado|floatformat:2 }}
+        </p>
+        <p class="text-xs text-gray-400 mt-1">Ao final do periodo</p>
+    </div>
+</div>
+
+<!-- Grafico de Barras Simples (CSS) -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Visao por Mes</h2>
+    <div class="space-y-4">
+        {% for mes in projecao %}
+        <div class="border rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-gray-800">{{ mes.nome_mes }} {{ mes.ano }}</h3>
+                <span class="text-sm {% if mes.saldo_acumulado >= 0 %}text-green-600{% else %}text-red-600{% endif %} font-bold">
+                    Saldo: R$ {{ mes.saldo_acumulado|floatformat:2 }}
+                </span>
+            </div>
+            <div class="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                    <p class="text-gray-500">A Receber</p>
+                    <p class="text-lg font-semibold text-green-600">R$ {{ mes.a_receber|floatformat:2 }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500">A Pagar</p>
+                    <p class="text-lg font-semibold text-red-600">R$ {{ mes.a_pagar|floatformat:2 }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500">Resultado Mes</p>
+                    <p class="text-lg font-semibold {% if mes.saldo_mes >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if mes.saldo_mes >= 0 %}+{% endif %}R$ {{ mes.saldo_mes|floatformat:2 }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Barra visual -->
+            <div class="mt-3 flex h-4 rounded overflow-hidden bg-gray-200">
+                {% if mes.a_receber > 0 or mes.a_pagar > 0 %}
+                    {% widthratio mes.a_receber mes.a_receber|add:mes.a_pagar 100 as receber_pct %}
+                    <div class="bg-green-500 h-full" style="width: {{ receber_pct }}%"></div>
+                    <div class="bg-red-500 h-full flex-1"></div>
+                {% endif %}
+            </div>
+
+            <!-- Detalhes expansiveis -->
+            <details class="mt-3">
+                <summary class="text-sm text-indigo-600 cursor-pointer hover:underline">Ver detalhes</summary>
+                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- A Receber -->
+                    <div class="bg-green-50 rounded p-3">
+                        <h4 class="text-sm font-semibold text-green-800 mb-2">A Receber ({{ mes.itens_receber|length }})</h4>
+                        {% for item in mes.itens_receber %}
+                        <div class="flex justify-between text-sm py-1 border-b border-green-100 last:border-0">
+                            <span class="text-gray-700">{{ item.conta_receber.descricao }}</span>
+                            <span class="font-medium text-green-700">R$ {{ item.valor|floatformat:2 }}</span>
+                        </div>
+                        {% empty %}
+                        <p class="text-sm text-gray-500">Nenhum recebimento previsto</p>
+                        {% endfor %}
+                    </div>
+                    <!-- A Pagar -->
+                    <div class="bg-red-50 rounded p-3">
+                        <h4 class="text-sm font-semibold text-red-800 mb-2">A Pagar ({{ mes.itens_pagar|length }})</h4>
+                        {% for item in mes.itens_pagar %}
+                        <div class="flex justify-between text-sm py-1 border-b border-red-100 last:border-0">
+                            <span class="text-gray-700">{{ item.conta_pagar.descricao }}</span>
+                            <span class="font-medium text-red-700">R$ {{ item.valor|floatformat:2 }}</span>
+                        </div>
+                        {% empty %}
+                        <p class="text-sm text-gray-500">Nenhum pagamento previsto</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </details>
+        </div>
+        {% empty %}
+        <div class="text-center text-gray-500 py-8">
+            Nenhuma projecao disponivel. Cadastre contas a pagar e receber para ver a projecao.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Saldo das Contas Bancarias -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Contas Bancarias</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {% for conta in contas_bancarias %}
+        <div class="border rounded-lg p-4" style="border-left: 4px solid {{ conta.cor }}">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="w-3 h-3 rounded-full" style="background: {{ conta.cor }}"></span>
+                <h3 class="font-semibold text-gray-800">{{ conta.nome }}</h3>
+            </div>
+            <p class="text-sm text-gray-500">{{ conta.banco|default:"Banco" }} - {{ conta.get_tipo_conta_display }}</p>
+            <p class="text-xl font-bold mt-2 {% if conta.get_saldo >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                R$ {{ conta.get_saldo|floatformat:2 }}
+            </p>
+        </div>
+        {% empty %}
+        <div class="col-span-3 text-center text-gray-500 py-4">
+            Nenhuma conta bancaria cadastrada.
+            <a href="{% url 'contas_bancarias' %}" class="text-indigo-600 hover:underline">Cadastrar conta</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

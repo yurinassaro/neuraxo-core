@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Mental - {{ projeto.titulo }} - NeuraxoCore</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+
+        .header {
+            height: 56px;
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+        }
+
+        .header a, .header span { color: white; text-decoration: none; font-size: 14px; }
+        .header a {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .header a:hover { background: rgba(255,255,255,0.15); }
+        .header .title { font-weight: 600; font-size: 17px; }
+        .header .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .toolbar {
+            height: 60px;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            padding: 4px;
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .toolbar-btn {
+            padding: 10px 16px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .toolbar-btn:hover {
+            background: #f8fafc;
+            color: #4f46e5;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .toolbar-btn:active {
+            transform: translateY(0);
+        }
+
+        .toolbar-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .toolbar-btn.fullscreen-btn {
+            background: #0f172a;
+            color: white;
+        }
+
+        .toolbar-btn.fullscreen-btn:hover {
+            background: #1e293b;
+            color: white;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px;
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            color: #475569;
+            transition: all 0.2s ease;
+        }
+
+        .zoom-btn:hover {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .zoom-info {
+            font-size: 13px;
+            font-weight: 500;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 8px 16px;
+            border-radius: 8px;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .divider {
+            width: 1px;
+            height: 32px;
+            background: #e2e8f0;
+            margin: 0 6px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .filtros {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filtro-select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #475569;
+            background: white;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .filtro-select:hover {
+            border-color: #4f46e5;
+        }
+
+        .filtro-select:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        #network-container {
+            height: calc(100vh - 116px);
+            width: 100%;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        /* Fullscreen mode */
+        body.is-fullscreen .header {
+            display: none;
+        }
+
+        body.is-fullscreen .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(226,232,240,0.8);
+        }
+
+        body.is-fullscreen #network-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: auto;
+        }
+
+        body.is-fullscreen .fullscreen-btn {
+            background: #ef4444;
+        }
+
+        body.is-fullscreen .fullscreen-btn:hover {
+            background: #dc2626;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .toolbar-btn, .zoom-btn {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-header .etapa-numero {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: white;
+        }
+
+        .modal-header .etapa-info {
+            flex: 1;
+        }
+
+        .modal-header .etapa-titulo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .modal-header .etapa-status {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .modal-header .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: calc(80vh - 140px);
+        }
+
+        .modal-body h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-body h4 svg {
+            width: 18px;
+            height: 18px;
+            color: #4f46e5;
+        }
+
+        .descricao-texto {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 3px solid #4f46e5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .modal-actions a, .modal-actions button {
+            flex: 1;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            text-align: center;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .modal-actions .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            color: white;
+        }
+
+        .modal-actions .btn-primary:hover {
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .modal-actions .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .modal-actions .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .no-descricao {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+        }
+
+        .no-descricao svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Subtarefas */
+        .subtarefas-lista {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .subtarefa-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #475569;
+            border-left: 3px solid #cbd5e1;
+            transition: all 0.2s;
+        }
+
+        .subtarefa-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .subtarefa-item svg {
+            width: 18px;
+            height: 18px;
+            min-width: 18px;
+            color: #94a3b8;
+        }
+
+        .subtarefa-item.concluida {
+            background: #f0fdf4;
+            border-left-color: #22c55e;
+        }
+
+        .subtarefa-item.concluida svg {
+            color: #22c55e;
+        }
+
+        .subtarefa-item.concluida span {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+
+        /* Botões de ação de status */
+        .status-actions {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .status-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .status-btn.andamento {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-btn.andamento:hover {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .status-btn.concluido {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .status-btn.concluido:hover {
+            background: #22c55e;
+            color: white;
+        }
+
+        /* Cursor pointer nos nodes */
+        .vis-network canvas {
+            cursor: grab;
+        }
+
+        .vis-network canvas:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+    <!-- Modal de Detalhes da Etapa -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="etapa-numero" id="modal-ordem">1</div>
+                <div class="etapa-info">
+                    <h3 class="etapa-titulo" id="modal-titulo">Título da Etapa</h3>
+                    <div class="etapa-status" id="modal-status"></div>
+                </div>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Conteúdo dinâmico -->
+            </div>
+        </div>
+    </div>
+
+    <div class="header">
+        <a href="{% url 'detalhe_projeto' projeto.id %}">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Voltar
+        </a>
+        <div style="width:16px;height:16px;border-radius:4px;background:{{ projeto.cor }};box-shadow:0 2px 4px rgba(0,0,0,0.2);"></div>
+        <span class="title">{{ projeto.titulo }}</span>
+        <span class="badge">{{ projeto.get_progresso }}% concluído</span>
+        <span class="badge">{{ etapas|length }} etapas</span>
+    </div>
+
+    <div class="toolbar">
+        <div class="btn-group">
+            <button class="toolbar-btn" onclick="centralize()" title="Centralizar visualização">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                </svg>
+                Centralizar
+            </button>
+        </div>
+
+        <div class="zoom-controls">
+            <button class="zoom-btn" onclick="zoomOut()" title="Diminuir zoom">−</button>
+            <button class="zoom-btn" onclick="zoomIn()" title="Aumentar zoom">+</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <button class="toolbar-btn fullscreen-btn" onclick="toggleFullscreen()" title="Alternar tela cheia">
+            <svg id="fullscreen-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+            </svg>
+            <span id="fullscreen-text">Tela Cheia</span>
+        </button>
+
+        <span class="zoom-info" id="zoom-info">Zoom: 100%</span>
+
+        <div class="divider"></div>
+
+        <div class="filtros">
+            <select id="filtro-status" onchange="aplicarFiltro(this.value)" class="filtro-select">
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendentes</option>
+                <option value="em_andamento">Em Andamento</option>
+                <option value="concluido">Concluídos</option>
+                <option value="atrasado">Atrasados</option>
+                <option value="dependente">Dependentes</option>
+            </select>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-dot" style="background:#9ca3af;"></span> Pendente</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span> Em Andamento</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#22c55e;"></span> Concluído</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f97316;"></span> Dependente</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#ef4444;"></span> Atrasado</div>
+        </div>
+    </div>
+
+    <div id="network-container"></div>
+
+    {% load static %}
+    <script src="{% static 'js/vis-network.min.js' %}"></script>
+    <script>
+        let network = null;
+
+        const STATUS_COLORS = {
+            pendente: '#9ca3af',
+            em_andamento: '#3b82f6',
+            dependente: '#f97316',
+            concluido: '#22c55e',
+            cancelado: '#ef4444'
+        };
+
+        const STATUS_LABELS = {
+            pendente: { text: 'Pendente', bg: '#f1f5f9', color: '#64748b' },
+            em_andamento: { text: 'Em Andamento', bg: '#dbeafe', color: '#1d4ed8' },
+            dependente: { text: 'Aguardando', bg: '#ffedd5', color: '#c2410c' },
+            concluido: { text: 'Concluído', bg: '#dcfce7', color: '#15803d' },
+            cancelado: { text: 'Cancelado', bg: '#fee2e2', color: '#b91c1c' }
+        };
+
+        const projeto = {
+            titulo: "{{ projeto.titulo|escapejs }}",
+            cor: "{{ projeto.cor }}",
+            progresso: {{ projeto.get_progresso }}
+        };
+
+        const etapas = [
+            {% for e in etapas %}
+            {
+                id: {{ e.id }},
+                ordem: {{ e.etapa_ordem|default:forloop.counter }},
+                titulo: "{{ e.titulo|escapejs }}",
+                descricao: "{{ e.descricao|escapejs|default:'' }}",
+                instrucoes: "{{ e.instrucoes|escapejs|default:'' }}",
+                status: "{{ e.status }}",
+                statusDisplay: "{{ e.get_status_display|escapejs }}",
+                atrasada: {{ e.esta_atrasada|yesno:"true,false" }},
+                prazo: "{{ e.prazo|date:'d/m' }}",
+                prazoFull: "{{ e.prazo|date:'d/m/Y H:i' }}",
+                subtarefas: [
+                    {% for st in e.subtarefas_demanda.all %}
+                    { titulo: "{{ st.titulo|escapejs }}", concluida: {{ st.concluida|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
+                    {% endfor %}
+                ]
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        // Filtro atual
+        let filtroAtual = 'todos';
+
+        // Mapa de etapas por ID para acesso rápido
+        const etapasMap = {};
+        etapas.forEach(e => etapasMap[e.id] = e);
+
+        function initMindMap() {
+            if (typeof vis === 'undefined') {
+                document.getElementById('network-container').innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444;">Erro ao carregar vis.js</div>';
+                return;
+            }
+
+            // Create root node at center
+            const nodes = new vis.DataSet([{
+                id: 0,
+                label: projeto.titulo + '\n(' + projeto.progresso + '%)',
+                x: 0, y: 0,
+                color: { background: projeto.cor, border: projeto.cor },
+                font: { color: '#fff', size: 18, face: 'arial', bold: true },
+                shape: 'box',
+                margin: { top: 15, bottom: 15, left: 25, right: 25 },
+                shadow: true,
+                borderWidth: 0
+            }]);
+
+            // Filtra etapas conforme filtro atual
+            const etapasFiltradas = etapas.filter(e => {
+                if (filtroAtual === 'todos') return true;
+                if (filtroAtual === 'atrasado') return e.atrasada;
+                return e.status === filtroAtual;
+            });
+
+            // Split etapas: left and right
+            const half = Math.ceil(etapasFiltradas.length / 2);
+
+            etapasFiltradas.forEach((e, idx) => {
+                const isLeft = idx < half;
+                const posIdx = isLeft ? idx : idx - half;
+                const totalInSide = isLeft ? half : etapasFiltradas.length - half;
+                const yOffset = (posIdx - (totalInSide - 1) / 2) * 65;
+                // Vermelho para atrasada, senão usa cor do status
+                const statusColor = e.atrasada ? '#ef4444' : (STATUS_COLORS[e.status] || '#9ca3af');
+
+                // Monta label com info extra
+                let label = e.ordem + '. ' + e.titulo;
+
+                // Adiciona progresso de subtarefas se houver
+                if (e.subtarefas && e.subtarefas.length > 0) {
+                    const concluidas = e.subtarefas.filter(st => st.concluida).length;
+                    label += '\n[' + concluidas + '/' + e.subtarefas.length + ' subtarefas]';
+                }
+
+                // Adiciona prazo se atrasado
+                if (e.atrasada && e.prazo) {
+                    label += '\n⚠ ' + e.prazo;
+                }
+
+                nodes.add({
+                    id: e.id,
+                    label: label,
+                    x: isLeft ? -380 : 380,
+                    y: yOffset,
+                    color: { background: statusColor, border: statusColor },
+                    font: { color: '#fff', size: 11, face: 'arial', multi: true },
+                    shape: 'box',
+                    margin: 10,
+                    shadow: true,
+                    borderWidth: 0,
+                    widthConstraint: { maximum: 200 }
+                });
+            });
+
+            // Create edges
+            const edges = new vis.DataSet();
+            etapasFiltradas.forEach(e => {
+                // Vermelho para atrasada, senão usa cor do status
+                const statusColor = e.atrasada ? '#ef4444' : (STATUS_COLORS[e.status] || '#9ca3af');
+                edges.add({
+                    from: 0,
+                    to: e.id,
+                    color: { color: statusColor, opacity: 0.5 },
+                    width: 2,
+                    smooth: { enabled: true, type: 'cubicBezier', roundness: 0.6 }
+                });
+            });
+
+            const container = document.getElementById('network-container');
+            const options = {
+                physics: { enabled: false },
+                interaction: {
+                    dragNodes: true,
+                    dragView: true,
+                    zoomView: true,
+                    hover: true
+                }
+            };
+
+            network = new vis.Network(container, { nodes, edges }, options);
+
+            network.on('zoom', params => {
+                document.getElementById('zoom-info').textContent = 'Zoom: ' + Math.round(params.scale * 100) + '%';
+            });
+
+            // Clique nas etapas para abrir modal
+            network.on('click', params => {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    if (nodeId !== 0 && etapasMap[nodeId]) {
+                        openModal(etapasMap[nodeId]);
+                    }
+                }
+            });
+
+            // Cursor pointer no hover
+            network.on('hoverNode', () => {
+                document.body.style.cursor = 'pointer';
+            });
+            network.on('blurNode', () => {
+                document.body.style.cursor = 'default';
+            });
+
+            setTimeout(() => network.fit({ animation: { duration: 500 } }), 200);
+        }
+
+        function openModal(etapa) {
+            let statusInfo = STATUS_LABELS[etapa.status] || STATUS_LABELS.pendente;
+            let statusColor = STATUS_COLORS[etapa.status] || '#9ca3af';
+
+            // Se atrasada, mostrar em vermelho
+            if (etapa.atrasada) {
+                statusInfo = { text: 'Atrasado', bg: '#fee2e2', color: '#b91c1c' };
+                statusColor = '#ef4444';
+            }
+
+            document.getElementById('modal-ordem').textContent = etapa.ordem;
+            document.getElementById('modal-ordem').style.background = statusColor;
+            document.getElementById('modal-titulo').textContent = etapa.titulo;
+
+            // Status + prazo
+            let statusHtml = '<span class="status-badge" style="background:' + statusInfo.bg + ';color:' + statusInfo.color + ';">' + statusInfo.text + '</span>';
+            if (etapa.prazoFull) {
+                statusHtml += '<span style="margin-left:10px;font-size:12px;color:#64748b;">Prazo: ' + etapa.prazoFull + '</span>';
+            }
+            document.getElementById('modal-status').innerHTML = statusHtml;
+
+            // Guarda ID da etapa atual para ações
+            window.etapaAtualId = etapa.id;
+
+            const body = document.getElementById('modal-body');
+            let html = '';
+
+            if (etapa.descricao && etapa.descricao.trim()) {
+                html += '<h4><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>Descrição</h4>';
+                html += '<p class="descricao-texto">' + etapa.descricao + '</p>';
+            }
+
+            if (etapa.instrucoes && etapa.instrucoes.trim()) {
+                html += '<h4 style="margin-top:20px;"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Instruções</h4>';
+                html += '<p class="descricao-texto">' + etapa.instrucoes + '</p>';
+            }
+
+            // Subtarefas
+            if (etapa.subtarefas && etapa.subtarefas.length > 0) {
+                const concluidas = etapa.subtarefas.filter(st => st.concluida).length;
+                const total = etapa.subtarefas.length;
+                html += '<h4 style="margin-top:20px;"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>Subtarefas (' + concluidas + '/' + total + ')</h4>';
+                html += '<ul class="subtarefas-lista">';
+                etapa.subtarefas.forEach(st => {
+                    const checkClass = st.concluida ? 'concluida' : '';
+                    const checkIcon = st.concluida
+                        ? '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+                        : '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>';
+                    html += '<li class="subtarefa-item ' + checkClass + '">' + checkIcon + '<span>' + st.titulo + '</span></li>';
+                });
+                html += '</ul>';
+            }
+
+            if (!html) {
+                html = '<div class="no-descricao"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><p>Nenhuma descrição disponível para esta etapa.</p></div>';
+            }
+
+            // Botões de ação rápida de status
+            if (etapa.status !== 'concluido') {
+                html += '<div class="status-actions">';
+                html += '<span style="font-size:12px;color:#64748b;margin-right:10px;">Mudar status:</span>';
+                if (etapa.status !== 'em_andamento') {
+                    html += '<button onclick="mudarStatus(' + etapa.id + ', \'em_andamento\')" class="status-btn andamento">Em Andamento</button>';
+                }
+                html += '<button onclick="mudarStatus(' + etapa.id + ', \'concluido\')" class="status-btn concluido">Concluir</button>';
+                html += '</div>';
+            }
+
+            html += '<div class="modal-actions">';
+            html += '<a href="/demanda/' + etapa.id + '/" class="btn-primary">Abrir Detalhes</a>';
+            html += '<button onclick="closeModal()" class="btn-secondary">Fechar</button>';
+            html += '</div>';
+
+            body.innerHTML = html;
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== document.getElementById('modal-overlay')) return;
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        function aplicarFiltro(valor) {
+            filtroAtual = valor;
+            initMindMap();
+        }
+
+        function mudarStatus(demandaId, novoStatus) {
+            if (!confirm('Confirma mudança de status para ' + (novoStatus === 'concluido' ? 'Concluído' : 'Em Andamento') + '?')) {
+                return;
+            }
+
+            fetch('/demanda/' + demandaId + '/status/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ status: novoStatus })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    // Atualiza a etapa localmente
+                    const etapa = etapasMap[demandaId];
+                    if (etapa) {
+                        etapa.status = novoStatus;
+                        etapa.statusDisplay = novoStatus === 'concluido' ? 'Concluído' : 'Em Andamento';
+                        if (novoStatus === 'concluido') {
+                            etapa.atrasada = false;
+                        }
+                    }
+                    closeModal();
+                    initMindMap();
+                } else {
+                    alert(data.error || 'Erro ao atualizar status');
+                }
+            })
+            .catch(() => alert('Erro de conexão'));
+        }
+
+        function centralize() {
+            if (network) network.fit({ animation: { duration: 300 } });
+        }
+
+        function zoomIn() {
+            if (network) {
+                const scale = network.getScale();
+                network.moveTo({ scale: scale * 1.3, animation: { duration: 200 } });
+            }
+        }
+
+        function zoomOut() {
+            if (network) {
+                const scale = network.getScale();
+                network.moveTo({ scale: scale / 1.3, animation: { duration: 200 } });
+            }
+        }
+
+        let isFullscreen = false;
+
+        function toggleFullscreen() {
+            isFullscreen = !isFullscreen;
+            document.body.classList.toggle('is-fullscreen', isFullscreen);
+
+            const icon = document.getElementById('fullscreen-icon');
+            const text = document.getElementById('fullscreen-text');
+
+            if (isFullscreen) {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>';
+                text.textContent = 'Sair';
+                // Try native fullscreen too
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                }
+            } else {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>';
+                text.textContent = 'Tela Cheia';
+                if (document.exitFullscreen && document.fullscreenElement) {
+                    document.exitFullscreen().catch(() => {});
+                }
+            }
+
+            // Refit network after transition
+            setTimeout(() => {
+                if (network) network.fit({ animation: { duration: 300 } });
+            }, 100);
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                // Primeiro fecha o modal se estiver aberto
+                if (document.getElementById('modal-overlay').classList.contains('active')) {
+                    closeModal();
+                    return;
+                }
+                // Depois sai do fullscreen
+                if (isFullscreen) {
+                    toggleFullscreen();
+                }
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && isFullscreen) {
+                isFullscreen = false;
+                document.body.classList.remove('is-fullscreen');
+                const icon = document.getElementById('fullscreen-icon');
+                const text = document.getElementById('fullscreen-text');
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>';
+                text.textContent = 'Tela Cheia';
+                setTimeout(() => {
+                    if (network) network.fit({ animation: { duration: 300 } });
+                }, 100);
+            }
+        });
+
+        // Init
+        initMindMap();
+    </script>
+</body>
+</html>

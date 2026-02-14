@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}Alertas Financeiros - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Alertas Financeiros</h1>
+    <div class="flex items-center gap-3">
+        <form method="get" class="flex items-center gap-2">
+            <select name="empresa" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa.id == e.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+{% if empresa %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Preview de alertas pendentes -->
+    <div class="lg:col-span-2 space-y-4">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Situacao Atual</h2>
+            {% if preview_alertas %}
+            <div class="space-y-4">
+                {% for alerta in preview_alertas %}
+                <div class="border-l-4 p-4 rounded-r-lg
+                    {% if alerta.cor == 'red' %}border-red-500 bg-red-50{% endif %}
+                    {% if alerta.cor == 'yellow' %}border-yellow-500 bg-yellow-50{% endif %}
+                    {% if alerta.cor == 'blue' %}border-blue-500 bg-blue-50{% endif %}
+                    {% if alerta.cor == 'orange' %}border-orange-500 bg-orange-50{% endif %}
+                ">
+                    <h3 class="font-semibold
+                        {% if alerta.cor == 'red' %}text-red-800{% endif %}
+                        {% if alerta.cor == 'yellow' %}text-yellow-800{% endif %}
+                        {% if alerta.cor == 'blue' %}text-blue-800{% endif %}
+                        {% if alerta.cor == 'orange' %}text-orange-800{% endif %}
+                    ">{{ alerta.tipo }}</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-700">
+                        {% for item in alerta.itens %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p>Nenhum alerta pendente. Tudo em dia!</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Lista de alertas configurados -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold text-gray-700">Alertas Configurados</h2>
+            </div>
+            <div class="divide-y">
+                {% for alerta in alertas %}
+                <div class="p-4 flex items-center justify-between {% if not alerta.ativo %}opacity-50{% endif %}">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            {% if alerta.ativo %}
+                            <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded font-medium">ATIVO</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded font-medium">INATIVO</span>
+                            {% endif %}
+                            <h3 class="font-semibold text-gray-800">{{ alerta.get_tipo_display }}</h3>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                            <span>{{ alerta.dias_antecedencia }} dias de antecedencia</span>
+                            {% if alerta.valor_limite %}
+                            <span>Limite: R$ {{ alerta.valor_limite|floatformat:2 }}</span>
+                            {% endif %}
+                            {% if alerta.notificar_whatsapp %}
+                            <span class="text-green-600">WhatsApp</span>
+                            {% endif %}
+                            {% if alerta.destinatarios.exists %}
+                            <span>{{ alerta.destinatarios.count }} destinatario(s)</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <form action="{% url 'alertas_financeiros' %}?empresa={{ empresa.id }}" method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="toggle">
+                            <input type="hidden" name="alerta_id" value="{{ alerta.id }}">
+                            <button type="submit" class="px-3 py-1 text-sm rounded
+                                {% if alerta.ativo %}bg-yellow-100 text-yellow-700 hover:bg-yellow-200{% else %}bg-green-100 text-green-700 hover:bg-green-200{% endif %}">
+                                {% if alerta.ativo %}Desativar{% else %}Ativar{% endif %}
+                            </button>
+                        </form>
+                        <form action="{% url 'alertas_financeiros' %}?empresa={{ empresa.id }}" method="post"
+                              onsubmit="return confirm('Excluir este alerta?')">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="excluir">
+                            <input type="hidden" name="alerta_id" value="{{ alerta.id }}">
+                            <button type="submit" class="px-3 py-1 bg-red-100 text-red-700 text-sm rounded hover:bg-red-200">
+                                Excluir
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-gray-500">
+                    Nenhum alerta configurado. Crie um alerta ao lado.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Historico -->
+        {% if historico %}
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold text-gray-700">Historico de Alertas</h2>
+            </div>
+            <div class="divide-y max-h-64 overflow-y-auto">
+                {% for h in historico %}
+                <div class="p-3 flex items-center justify-between text-sm">
+                    <div>
+                        <span class="{% if h.sucesso %}text-green-600{% else %}text-red-600{% endif %}">
+                            {% if h.sucesso %}Enviado{% else %}Erro{% endif %}
+                        </span>
+                        - {{ h.alerta.get_tipo_display }}
+                    </div>
+                    <span class="text-gray-400">{{ h.enviado_em|date:"d/m H:i" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Form novo alerta -->
+    <div class="bg-white rounded-lg shadow p-6 h-fit">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Novo Alerta</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="empresa" value="{{ empresa.id }}">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Alerta</label>
+                <select name="tipo" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Selecione...</option>
+                    {% for val, label in tipos_alerta %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Dias de Antecedencia</label>
+                <input type="number" name="dias_antecedencia" value="3" min="1" max="30" class="w-full px-3 py-2 border rounded-lg text-sm">
+                <p class="text-xs text-gray-400 mt-1">Para alertas de vencimento proximo</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Valor Limite (R$)</label>
+                <input type="text" name="valor_limite" placeholder="1000,00" class="w-full px-3 py-2 border rounded-lg text-sm">
+                <p class="text-xs text-gray-400 mt-1">Para alerta de saldo baixo</p>
+            </div>
+            <div>
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" name="notificar_whatsapp" checked class="mr-2 h-4 w-4 text-green-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">Notificar via WhatsApp</span>
+                </label>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Destinatarios</label>
+                <select name="destinatarios" multiple class="w-full px-3 py-2 border rounded-lg text-sm" size="4">
+                    {% for p in pessoas %}
+                    <option value="{{ p.id }}">{{ p.nome }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Segure Ctrl para selecionar varios</p>
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 text-sm font-semibold">
+                Criar Alerta
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

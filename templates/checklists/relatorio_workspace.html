@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório - {{ workspace.nome }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'dashboard' %}" class="text-indigo-600 hover:underline">&larr; Voltar ao Dashboard</a>
+    <h1 class="text-2xl font-bold text-gray-800 mt-2">{{ workspace.nome }}</h1>
+    <p class="text-gray-600">Relatório de {{ hoje|date:"d/m/Y" }}</p>
+</div>
+
+<!-- Resumo por Pessoa -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pessoa</th>
+                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Total</th>
+                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Concluídos</th>
+                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Pendentes</th>
+                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Atrasados</th>
+                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Progresso</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            {% for stat in pessoas_stats %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3">
+                    <p class="font-medium">{{ stat.pessoa.nome }}</p>
+                    <p class="text-sm text-gray-500">{{ stat.pessoa.cargo.nome|default:"-" }}</p>
+                </td>
+                <td class="px-4 py-3 text-center">{{ stat.total }}</td>
+                <td class="px-4 py-3 text-center text-green-600 font-medium">{{ stat.concluidos }}</td>
+                <td class="px-4 py-3 text-center text-gray-600">{{ stat.pendentes }}</td>
+                <td class="px-4 py-3 text-center {% if stat.atrasados > 0 %}text-red-600 font-medium{% else %}text-gray-400{% endif %}">
+                    {{ stat.atrasados }}
+                </td>
+                <td class="px-4 py-3">
+                    {% if stat.total > 0 %}
+                    {% widthratio stat.concluidos stat.total 100 as percent %}
+                    <div class="flex items-center">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-green-500 h-2 rounded-full" style="width: {{ percent }}%"></div>
+                        </div>
+                        <span class="text-sm text-gray-600">{{ percent }}%</span>
+                    </div>
+                    {% else %}
+                    <span class="text-gray-400">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                    Nenhuma pessoa cadastrada neste workspace.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

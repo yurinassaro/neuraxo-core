@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<h1>Duplicar Rotina</h1>
+
+<p>Você está duplicando a rotina: <strong>{{ template.titulo }}</strong></p>
+<p>Empresa origem: <strong>{{ template.empresa.nome }}</strong></p>
+
+<form method="post">
+    {% csrf_token %}
+
+    <fieldset class="module aligned">
+        <h2>Selecione as empresas de destino</h2>
+
+        <div class="form-row">
+            <p class="help" style="margin-bottom: 10px;">Marque as empresas para as quais deseja duplicar esta rotina:</p>
+            {% for empresa in empresas %}
+            <label style="display: block; margin: 5px 0; padding: 5px; background: {% if empresa.id == template.empresa_id %}#fffde7{% else %}#f5f5f5{% endif %}; border-radius: 4px;">
+                <input type="checkbox" name="empresas" value="{{ empresa.id }}" {% if empresa.id == template.empresa_id %}disabled{% endif %}>
+                {{ empresa.nome }}
+                {% if empresa.id == template.empresa_id %}<span style="color: #999;">(origem)</span>{% endif %}
+            </label>
+            {% endfor %}
+        </div>
+    </fieldset>
+
+    <fieldset class="module aligned">
+        <h2>Opções</h2>
+
+        <div class="form-row">
+            <label for="id_manter_responsavel">
+                <input type="checkbox" name="manter_responsavel" id="id_manter_responsavel" checked>
+                Manter mesmo responsável/cargo (se existir na empresa destino)
+            </label>
+        </div>
+
+        <div class="form-row">
+            <label for="id_criar_itens">
+                <input type="checkbox" name="criar_itens" id="id_criar_itens" checked>
+                Criar itens de checklist para hoje
+            </label>
+            <p class="help">Se marcado, gera automaticamente as tarefas para a data de hoje</p>
+        </div>
+    </fieldset>
+
+    <div class="submit-row">
+        <input type="submit" value="Duplicar para Empresas Selecionadas" class="default">
+        <a href="{% url 'admin:checklists_checklisttemplate_changelist' %}" class="button cancel-link">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

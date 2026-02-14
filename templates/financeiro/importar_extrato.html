@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Importar Extrato - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Importar Extrato</h1>
+    <a href="{% url 'contas_bancarias' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+</div>
+
+{% if lancamentos_parsed %}
+<!-- Preview -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-700">Preview - {{ conta.nome }} ({{ arquivo_nome }})</h2>
+        <div class="flex gap-4 text-sm">
+            <span class="text-green-600 font-semibold">Entradas: R$ {{ total_entradas|floatformat:2 }}</span>
+            <span class="text-red-600 font-semibold">Saídas: R$ {{ total_saidas|floatformat:2 }}</span>
+            <span class="font-bold">{{ lancamentos_parsed|length }} lançamentos</span>
+        </div>
+    </div>
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+        <table class="w-full text-sm">
+            <thead class="text-left text-gray-400 border-b sticky top-0 bg-white">
+                <tr>
+                    <th class="py-2">Data</th>
+                    <th>Descrição</th>
+                    <th class="text-right">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in lancamentos_parsed %}
+                <tr class="border-b last:border-0">
+                    <td class="py-1.5">{{ l.data|date:"d/m/Y" }}</td>
+                    <td>{{ l.descricao }}</td>
+                    <td class="text-right font-semibold {% if l.valor > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        R$ {{ l.valor|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-xs text-gray-400 mt-3">Confira os dados acima. Para importar, envie o arquivo novamente sem o botão "Visualizar".</p>
+</div>
+{% endif %}
+
+<!-- Form de importação -->
+<div class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <h2 class="text-lg font-semibold text-gray-700 mb-4">Enviar Arquivo</h2>
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Conta Bancária</label>
+            <select name="conta" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                <option value="">Selecione...</option>
+                {% for c in contas %}
+                <option value="{{ c.id }}" {% if conta and c.id == conta.id %}selected{% endif %}>{{ c.nome }} ({{ c.empresa.nome }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Arquivo (CSV, XLSX ou PDF)</label>
+            <input type="file" name="arquivo" required accept=".csv,.xlsx,.xls,.pdf" class="w-full px-3 py-2 border rounded-lg text-sm">
+        </div>
+        <div class="flex gap-3">
+            <button type="submit" name="preview" value="1" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm flex-1">Visualizar</button>
+            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm flex-1">Importar</button>
+        </div>
+    </form>
+    <div class="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
+        <p class="font-semibold mb-1">Formato esperado do arquivo:</p>
+        <p>O arquivo deve ter colunas de <strong>Data</strong>, <strong>Descrição</strong> e <strong>Valor</strong>.</p>
+        <p>Valores positivos = entrada, negativos = saída.</p>
+        <p>Se tiver colunas separadas de Crédito/Débito, também funciona.</p>
+        <p>Formatos de data aceitos: DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD.</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}Projetos - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Projetos</h1>
+    {% if pessoa.is_gestor %}
+    <div class="flex items-center space-x-3">
+        <a href="{% url 'lista_templates' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path></svg>
+            <span>Templates</span>
+        </a>
+        <a href="{% url 'criar_projeto' %}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            <span>Novo Projeto</span>
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Filtros -->
+<div class="flex flex-wrap gap-2 mb-6">
+    <a href="{% url 'lista_projetos' %}" class="px-3 py-1 text-sm rounded-full {% if not status_filter %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">Todos</a>
+    {% for value, label in status_choices %}
+    <a href="?status={{ value }}{% if empresa_filter %}&empresa={{ empresa_filter }}{% endif %}"
+       class="px-3 py-1 text-sm rounded-full {% if status_filter == value %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">{{ label }}</a>
+    {% endfor %}
+</div>
+
+{% if projetos %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for projeto in projetos %}
+    <div class="bg-white rounded-xl shadow hover:shadow-lg transition relative group">
+        {% if request.user.is_superuser %}
+        <button onclick="excluirProjeto({{ projeto.id }}, '{{ projeto.titulo|escapejs }}')"
+                class="absolute top-3 right-3 p-1.5 bg-red-100 text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 z-10"
+                title="Excluir projeto">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+        </button>
+        {% endif %}
+        <a href="{% url 'detalhe_projeto' projeto.id %}" class="block">
+        <div class="h-2 rounded-t-xl" style="background-color: {{ projeto.cor }};"></div>
+        <div class="p-5">
+            <div class="flex items-center flex-wrap gap-1 mb-2">
+                <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ projeto.empresa.cor }}20; color: {{ projeto.empresa.cor }};">{{ projeto.empresa.nome }}</span>
+                {% if projeto.cliente %}
+                <span class="px-2 py-0.5 text-xs rounded bg-purple-100 text-purple-800">{{ projeto.cliente.nome }}</span>
+                {% endif %}
+                <span class="px-2 py-0.5 text-xs rounded
+                    {% if projeto.status == 'em_andamento' %}bg-blue-100 text-blue-800
+                    {% elif projeto.status == 'em_manutencao' %}bg-teal-100 text-teal-800
+                    {% elif projeto.status == 'concluido' %}bg-green-100 text-green-800
+                    {% elif projeto.status == 'pausado' %}bg-yellow-100 text-yellow-800
+                    {% elif projeto.status == 'cancelado' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">{{ projeto.get_status_display }}</span>
+                {% if projeto.esta_atrasado %}
+                <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded">ATRASADO</span>
+                {% endif %}
+            </div>
+            <h3 class="font-semibold text-gray-800 text-lg mb-1">{{ projeto.titulo }}</h3>
+            {% if projeto.descricao %}
+            <p class="text-sm text-gray-500 mb-3 line-clamp-2">{{ projeto.descricao|truncatechars:80 }}</p>
+            {% endif %}
+
+            <!-- Barra de progresso -->
+            <div class="mb-2">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>{{ projeto.etapas_concluidas }}/{{ projeto.total_etapas }} etapas</span>
+                    <span>{{ projeto.get_progresso }}%</span>
+                </div>
+                <div class="bg-gray-200 rounded-full h-2">
+                    <div class="h-2 rounded-full transition-all" style="width: {{ projeto.get_progresso }}%; background-color: {{ projeto.cor }};"></div>
+                </div>
+            </div>
+
+            {% if projeto.participantes.all %}
+            <div class="flex items-center mt-2 -space-x-1">
+                {% for p in projeto.participantes.all|slice:":5" %}
+                <div class="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-xs font-bold text-indigo-600" title="{{ p.nome }}">{{ p.nome|first }}</div>
+                {% endfor %}
+                {% if projeto.participantes.count > 5 %}
+                <span class="text-xs text-gray-400 ml-2">+{{ projeto.participantes.count|add:"-5" }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="flex items-center justify-between text-xs text-gray-500 mt-3">
+                {% if projeto.responsavel %}
+                <span>{{ projeto.responsavel.nome }}</span>
+                {% else %}
+                <span>Sem responsável</span>
+                {% endif %}
+                {% if projeto.prazo %}
+                <span>Prazo: {{ projeto.prazo|date:"d/m/Y" }}</span>
+                {% endif %}
+            </div>
+        </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-xl shadow p-12 text-center">
+    <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+    </svg>
+    <p class="text-gray-500 text-lg">Nenhum projeto encontrado</p>
+    {% if pessoa.is_gestor %}
+    <a href="{% url 'criar_projeto' %}" class="mt-4 inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Criar primeiro projeto</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if request.user.is_superuser %}
+<!-- Modal Excluir Projeto -->
+<div id="modal-excluir-projeto" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">Excluir Projeto</h3>
+        <p class="text-gray-600 mb-4">Projeto: <strong id="modal-projeto-titulo"></strong></p>
+
+        <div class="space-y-3">
+            <button onclick="confirmarExclusao(false)"
+                    class="w-full px-4 py-3 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 text-left">
+                <div class="font-medium">Excluir apenas o projeto</div>
+                <div class="text-sm text-yellow-600">As etapas (demandas) serão mantidas e desvinculadas</div>
+            </button>
+
+            <button onclick="confirmarExclusao(true)"
+                    class="w-full px-4 py-3 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 text-left">
+                <div class="font-medium">Excluir projeto e todas as etapas</div>
+                <div class="text-sm text-red-600">Remove permanentemente o projeto e suas demandas</div>
+            </button>
+        </div>
+
+        <div class="mt-4 pt-4 border-t">
+            <button onclick="fecharModalExcluir()" class="w-full px-4 py-2 text-gray-600 hover:text-gray-800">
+                Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let projetoParaExcluir = null;
+
+function excluirProjeto(projetoId, titulo) {
+    projetoParaExcluir = projetoId;
+    document.getElementById('modal-projeto-titulo').textContent = titulo;
+    const modal = document.getElementById('modal-excluir-projeto');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function fecharModalExcluir() {
+    const modal = document.getElementById('modal-excluir-projeto');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    projetoParaExcluir = null;
+}
+
+function confirmarExclusao(excluirEtapas) {
+    if (!projetoParaExcluir) return;
+
+    const msg = excluirEtapas
+        ? 'ATENÇÃO: Isso vai excluir o projeto E todas as etapas/demandas permanentemente. Continuar?'
+        : 'Excluir apenas o projeto? As etapas serão mantidas.';
+
+    if (!confirm(msg)) return;
+
+    fetch(`/projeto/${projetoParaExcluir}/excluir/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ excluir_etapas: excluirEtapas })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            location.reload();
+        } else {
+            alert(data.error || 'Erro ao excluir projeto');
+        }
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}Nova Rotina - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-800">Nova Rotina</h1>
+    <a href="{% url 'lista_rotinas' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+</div>
+
+<div class="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Empresa *</label>
+                <select name="empresa" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    {% for e in empresas %}
+                    <option value="{{ e.id }}">{{ e.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Titulo *</label>
+                <input type="text" name="titulo" required class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ex: Verificar emails">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Descricao</label>
+            <textarea name="descricao" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Descricao da tarefa"></textarea>
+        </div>
+
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Processo (passo a passo)</label>
+            <textarea name="processo" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="1. Abrir sistema...&#10;2. Verificar..."></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Recorrencia</label>
+                <select name="recorrencia" id="recorrencia" class="w-full px-3 py-2 border rounded-lg text-sm" onchange="toggleRecorrencia()">
+                    {% for val, label in recorrencias %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="div-dia-semana" style="display:none">
+                <label class="block text-sm text-gray-600 mb-1">Dia da Semana</label>
+                <select name="dia_semana" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">-</option>
+                    {% for val, label in dias_semana %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="div-dia-mes" style="display:none">
+                <label class="block text-sm text-gray-600 mb-1">Dia do Mes</label>
+                <input type="number" name="dia_mes" min="1" max="31" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+        </div>
+
+        <div id="div-dias-ativos">
+            <label class="block text-sm text-gray-600 mb-2">Dias da semana</label>
+            <div class="flex flex-wrap gap-2">
+                {% for val, label in dias_semana %}
+                <label class="inline-flex items-center bg-gray-50 border rounded-lg px-3 py-2 cursor-pointer hover:bg-indigo-50 has-[:checked]:bg-indigo-100 has-[:checked]:border-indigo-400">
+                    <input type="checkbox" name="dias_semana_ativos" value="{{ val }}" {% if val < 5 %}checked{% endif %} class="mr-2 rounded text-indigo-600">
+                    <span class="text-sm">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Selecione os dias em que esta rotina deve ser gerada</p>
+        </div>
+
+        <div class="bg-gray-50 border rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">Atribuicao *</h3>
+            <p class="text-xs text-gray-500 mb-3">Selecione um responsavel especifico OU um cargo responsavel</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Responsavel</label>
+                    <select name="responsavel" id="responsavel" class="w-full px-3 py-2 border rounded-lg text-sm" onchange="validarAtribuicao()">
+                        <option value="">- Selecione -</option>
+                        <option value="todos">TODOS os funcionarios</option>
+                        {% for p in pessoas %}
+                        <option value="{{ p.id }}">{{ p.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Ou por Cargo</label>
+                    <select name="cargo_responsavel" id="cargo_responsavel" class="w-full px-3 py-2 border rounded-lg text-sm" onchange="validarAtribuicao()">
+                        <option value="">- Selecione -</option>
+                        {% for c in cargos %}
+                        <option value="{{ c.id }}">{{ c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <p id="erro-atribuicao" class="text-xs text-red-500 mt-2 hidden">Selecione pelo menos um responsavel ou cargo!</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Ordem de execucao</label>
+                <input type="number" name="ordem_execucao" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Tempo estimado</label>
+                <select name="tempo_estimado" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    {% for val, label in tempos %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Prioridade</label>
+                <select name="prioridade" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="1">Baixa</option>
+                    <option value="2" selected>Media</option>
+                    <option value="3">Alta</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t">
+            <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">Criar Rotina</button>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleRecorrencia() {
+    const v = document.getElementById('recorrencia').value;
+    document.getElementById('div-dia-semana').style.display = (v === 'semanal' || v === 'quinzenal') ? '' : 'none';
+    document.getElementById('div-dia-mes').style.display = (v === 'mensal' || v === 'trimestral' || v === 'semestral' || v === 'anual') ? '' : 'none';
+    document.getElementById('div-dias-ativos').style.display = (v === 'diaria') ? '' : 'none';
+}
+toggleRecorrencia();
+
+function validarAtribuicao() {
+    const resp = document.getElementById('responsavel').value;
+    const cargo = document.getElementById('cargo_responsavel').value;
+    const erro = document.getElementById('erro-atribuicao');
+    if (!resp && !cargo) {
+        erro.classList.remove('hidden');
+        return false;
+    }
+    erro.classList.add('hidden');
+    return true;
+}
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!validarAtribuicao()) {
+        e.preventDefault();
+        document.getElementById('erro-atribuicao').scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+/* Campo Processo e Descrição mais largos */
+.field-processo textarea,
+.field-descricao textarea,
+#id_processo,
+#id_descricao {
+    width: 100% !important;
+    min-width: 700px;
+    box-sizing: border-box;
+}
+
+/* Form row inteira */
+.form-row.field-processo .flex-container,
+.form-row.field-descricao .flex-container {
+    width: 100%;
+}
+
+/* Subtarefas - campo título mais largo */
+.inline-group .tabular td.field-titulo,
+.inline-group .tabular th.column-titulo {
+    width: 70% !important;
+}
+
+.inline-group .tabular td.field-titulo input[type="text"] {
+    width: 100% !important;
+    min-width: 500px;
+    box-sizing: border-box;
+}
+
+/* Reduzir outras colunas */
+.inline-group .tabular td.field-concluida,
+.inline-group .tabular td.field-ordem,
+.inline-group .tabular td.delete {
+    width: auto !important;
+    white-space: nowrap;
+}
+
+/* Ajuste geral para inlines */
+.tabular .form-row td {
+    padding: 8px;
+}
+
+/* Tabela de inline ocupa largura total */
+.inline-group .tabular table {
+    width: 100%;
+    table-layout: auto;
+}

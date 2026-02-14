@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Contas Bancárias - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Contas Bancárias</h1>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'importar_extrato' %}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm">Importar Extrato</a>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Form nova conta -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Nova Conta</h2>
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                <select name="empresa" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    {% for e in empresas %}
+                    <option value="{{ e.id }}">{{ e.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nome da Conta</label>
+                <input type="text" name="nome" required placeholder="Ex: Bradesco PJ" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                <input type="text" name="banco" placeholder="Ex: Bradesco" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select name="tipo_conta" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    {% for val, label in tipos_conta %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Agência</label>
+                    <input type="text" name="agencia" class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Conta</label>
+                    <input type="text" name="numero_conta" class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Saldo Inicial (R$)</label>
+                <input type="text" name="saldo_inicial" value="0,00" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Cor</label>
+                <input type="color" name="cor" value="#3b82f6" class="w-full h-10 rounded-lg border cursor-pointer">
+            </div>
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm w-full">Criar Conta</button>
+        </form>
+    </div>
+
+    <!-- Saldos por conta -->
+    <div class="lg:col-span-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {% for c in contas %}
+            <div class="bg-white rounded-lg shadow p-5 border-l-4" style="border-left-color:{{ c.cor }}">
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h3 class="font-semibold text-gray-800">{{ c.nome }}</h3>
+                        <p class="text-xs text-gray-400">{{ c.empresa.nome }} {% if c.banco %}- {{ c.banco }}{% endif %}</p>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs text-white" style="background:{{ c.cor }}">{{ c.get_tipo_conta_display }}</span>
+                </div>
+                {% if c.agencia or c.numero_conta %}
+                <p class="text-xs text-gray-400 mb-2">Ag: {{ c.agencia|default:"-" }} / Cc: {{ c.numero_conta|default:"-" }}</p>
+                {% endif %}
+                {% with saldo=c.get_saldo %}
+                <p class="text-2xl font-bold {% if saldo >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                    R$ {{ saldo|floatformat:2 }}
+                </p>
+                {% endwith %}
+                <p class="text-xs text-gray-400 mt-1">Saldo inicial: R$ {{ c.saldo_inicial|floatformat:2 }}</p>
+            </div>
+            {% empty %}
+            <div class="md:col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <p class="text-yellow-700">Nenhuma conta cadastrada.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

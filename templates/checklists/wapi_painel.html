@@ -1,0 +1,522 @@
+{% extends 'base.html' %}
+
+{% block title %}WhatsApp - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">WhatsApp (W-API)</h1>
+            <p class="text-gray-600">Integração para envio de lembretes e cobranças</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <!-- Teste rápido colapsável -->
+            <button onclick="document.getElementById('teste-section').classList.toggle('hidden')"
+                    class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm flex items-center space-x-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+                <span>Mensagem Teste</span>
+            </button>
+            <div id="status-badge" class="px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                Verificando...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Teste rápido (hidden por padrão) -->
+<div id="teste-section" class="hidden mb-6">
+    <div class="bg-white rounded-xl shadow p-4">
+        <div class="flex items-end space-x-3">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-500 mb-1">Telefone (com DDD)</label>
+                <input type="text" id="teste-telefone" placeholder="16999999999"
+                       class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div class="flex-[2]">
+                <label class="block text-xs text-gray-500 mb-1">Mensagem</label>
+                <input type="text" id="teste-mensagem" placeholder="Mensagem de teste..."
+                       class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <button onclick="enviarTeste()" id="btn-teste"
+                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm whitespace-nowrap">
+                Enviar
+            </button>
+            <span id="teste-resultado" class="text-sm whitespace-nowrap"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de Status -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-sm text-gray-500 mb-1">Status da Conexão</div>
+        <div id="connection-status" class="text-lg font-bold text-gray-400">Verificando...</div>
+        <div class="text-xs text-gray-400 mt-1">Instância: {{ wapi_instance }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-sm text-gray-500 mb-1">Enviadas Hoje</div>
+        <div class="text-2xl font-bold text-green-600">{{ stats.hoje_enviadas }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-sm text-gray-500 mb-1">Total Enviadas</div>
+        <div class="text-2xl font-bold text-indigo-600">{{ stats.total_enviadas }}</div>
+    </div>
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="text-sm text-gray-500 mb-1">Erros</div>
+        <div class="text-2xl font-bold text-red-600">{{ stats.total_erros }}</div>
+    </div>
+</div>
+
+<!-- Pendências Funcionários -->
+{% if pendencias_funcionarios %}
+<div class="bg-white rounded-xl shadow mb-6">
+    <div class="p-4 border-b bg-orange-50 flex justify-between items-center">
+        <div>
+            <h2 class="font-semibold text-orange-800">Pendencias com Funcionarios</h2>
+            <p class="text-sm text-orange-600">{{ total_pendencias_funcionarios }} tarefa(s) pendente(s) com {{ pendencias_funcionarios|length }} pessoa(s)</p>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="executarAgendamento('cobranca_funcionarios', this)" id="btn-cobrar-func"
+                    class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center space-x-2 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+                <span>Cobrar Todos Funcionarios</span>
+            </button>
+        </div>
+    </div>
+    <div class="divide-y">
+        {% for p in pendencias_funcionarios %}
+        <div class="p-4">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="font-semibold text-gray-800">{{ p.nome }}</span>
+                        <span class="text-xs font-mono text-gray-500">{{ p.telefone }}</span>
+                        <span class="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full">{{ p.itens|length }} pendente(s)</span>
+                    </div>
+                    <ul class="space-y-1 ml-4">
+                        {% for item in p.itens %}
+                        <li class="text-sm text-gray-600 flex items-start space-x-2">
+                            <span class="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">{{ item.status }}</span>
+                            <span class="font-medium">{{ item.titulo }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Pendências Externas -->
+{% if pendencias_externas %}
+<div class="bg-white rounded-xl shadow mb-6">
+    <div class="p-4 border-b bg-red-50 flex justify-between items-center">
+        <div>
+            <h2 class="font-semibold text-red-800">Pendencias com Pessoas Externas</h2>
+            <p class="text-sm text-red-600">{{ total_pendencias_externas }} pendencia(s) com {{ pendencias_externas|length }} pessoa(s)</p>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="cobrarTodos()" id="btn-cobrar-todos"
+                    class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center space-x-2 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+                <span>Cobrar Todos Agora</span>
+            </button>
+        </div>
+    </div>
+    <div class="divide-y">
+        {% for p in pendencias_externas %}
+        <div class="p-4">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="font-semibold text-gray-800">{{ p.nome }}</span>
+                        {% if p.telefone %}
+                        <span class="text-xs font-mono text-gray-500">{{ p.telefone }}</span>
+                        <a href="https://wa.me/55{{ p.telefone }}" target="_blank" class="text-xs text-green-600 hover:underline">Abrir Chat</a>
+                        {% else %}
+                        <span class="text-xs text-red-500">Sem telefone</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">{{ p.itens|length }} pendencia(s)</span>
+                    </div>
+                    <ul class="space-y-1 ml-4">
+                        {% for item in p.itens %}
+                        <li class="text-sm text-gray-600 flex items-start space-x-2">
+                            <span class="text-xs px-1.5 py-0.5 rounded {% if item.tipo == 'Tarefa' %}bg-indigo-100 text-indigo-700{% else %}bg-blue-100 text-blue-700{% endif %}">{{ item.tipo }}</span>
+                            <div>
+                                <span class="font-medium">{{ item.titulo }}</span>
+                                {% if item.motivo %}<span class="text-gray-400 ml-1">- {{ item.motivo }}</span>{% endif %}
+                                {% if item.responsavel %}<span class="text-gray-400 text-xs ml-1">({{ item.responsavel }})</span>{% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% if p.telefone %}
+                <button onclick="cobrarDependencia2('{{ p.nome }}', '{{ p.telefone }}')"
+                        class="px-3 py-1 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 ml-4">
+                    Cobrar
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Contas a Pagar (Financeiro) -->
+<div class="bg-white rounded-xl shadow mb-6">
+    <div class="p-4 border-b bg-yellow-50 flex justify-between items-center">
+        <div>
+            <h2 class="font-semibold text-yellow-800">Contas a Pagar</h2>
+            <p class="text-sm text-yellow-600">Envia lembrete de contas do dia e atrasadas para gestores</p>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="executarAgendamento('contas_pagar', this)" id="btn-contas-pagar"
+                    class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 flex items-center space-x-2 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Lembrete Contas a Pagar</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Histórico de Mensagens -->
+<div class="bg-white rounded-xl shadow mb-6">
+    <div class="p-4 border-b flex justify-between items-center">
+        <h2 class="font-semibold text-gray-800">Historico de Mensagens</h2>
+        <span class="text-sm text-gray-500">Ultimas 20</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Status</th>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Pessoa</th>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Tipo</th>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Telefone</th>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Mensagem</th>
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Data</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for n in notificacoes %}
+                <tr class="hover:bg-gray-50">
+                    <td class="py-3 px-4">
+                        {% if n.enviado %}
+                        <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Enviado</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full" title="{{ n.erro }}">Erro</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-4 text-sm">{{ n.pessoa.nome }}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-1 text-xs rounded
+                            {% if n.tipo == 'lembrete' %}bg-blue-100 text-blue-700
+                            {% elif n.tipo == 'cobranca' %}bg-orange-100 text-orange-700
+                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ n.get_tipo_display }}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-sm font-mono">{{ n.telefone }}</td>
+                    <td class="py-3 px-4 text-sm text-gray-600 max-w-xs truncate">{{ n.mensagem|truncatechars:60 }}</td>
+                    <td class="py-3 px-4 text-sm text-gray-500">{{ n.criado_em|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="py-8 text-center text-gray-500">Nenhuma mensagem enviada ainda</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Agendamentos Automáticos -->
+<div class="bg-white rounded-xl shadow mb-6">
+    <div class="p-4 border-b bg-indigo-50 flex justify-between items-center">
+        <div>
+            <h2 class="font-semibold text-indigo-800">Agendamentos Automaticos</h2>
+            <p class="text-sm text-indigo-600">Configure horarios e dias de envio</p>
+        </div>
+        <button onclick="salvarAgendamentos()" id="btn-salvar-ag"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
+            Salvar
+        </button>
+    </div>
+    <div class="divide-y">
+        {% for ag in agendamentos %}
+        <div class="p-4" data-ag-id="{{ ag.id }}">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center space-x-3">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" class="sr-only peer ag-ativo" {% if ag.ativo %}checked{% endif %}>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                    <div>
+                        <span class="font-medium text-gray-800">{{ ag.get_tipo_display }}</span>
+                        {% if ag.ultima_execucao %}
+                        <span class="text-xs text-gray-400 ml-2">Ultima: {{ ag.ultima_execucao|date:"d/m H:i" }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <label class="text-sm text-gray-500">Horario:</label>
+                    <input type="time" class="ag-horario px-2 py-1 border rounded text-sm" value="{{ ag.horario|time:'H:i' }}">
+                    <button onclick="executarAgendamento('{{ ag.tipo }}', this)"
+                            class="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 font-medium">
+                        Cobrar Agora
+                    </button>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% for dia_val, dia_nome in dias_semana %}
+                <label class="cursor-pointer">
+                    <input type="checkbox" class="sr-only peer ag-dia" value="{{ dia_val }}"
+                           {% if dia_val in ag.dias_semana %}checked{% endif %}>
+                    <span class="px-3 py-1 text-sm rounded-full border-2 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 border-gray-200 text-gray-500 hover:border-gray-300 transition">
+                        {{ dia_nome }}
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+document.addEventListener('DOMContentLoaded', verificarStatus);
+
+function verificarStatus() {
+    fetch('/wapi/status/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(r => r.json())
+    .then(data => {
+        const badge = document.getElementById('status-badge');
+        const connStatus = document.getElementById('connection-status');
+
+        if (!data.configured) {
+            badge.className = 'px-4 py-2 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800';
+            badge.textContent = 'Nao Configurado';
+            connStatus.textContent = 'Nao configurado';
+            connStatus.className = 'text-lg font-bold text-yellow-600';
+        } else if (data.connected) {
+            badge.className = 'px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800';
+            badge.textContent = 'Conectado';
+            connStatus.textContent = 'Conectado';
+            connStatus.className = 'text-lg font-bold text-green-600';
+        } else {
+            badge.className = 'px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-800';
+            badge.textContent = 'Desconectado';
+            connStatus.textContent = 'Desconectado';
+            connStatus.className = 'text-lg font-bold text-red-600';
+        }
+    })
+    .catch(() => {
+        document.getElementById('status-badge').textContent = 'Erro';
+        document.getElementById('status-badge').className = 'px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-800';
+    });
+}
+
+function enviarTeste() {
+    const telefone = document.getElementById('teste-telefone').value.trim();
+    const mensagem = document.getElementById('teste-mensagem').value.trim();
+    const resultado = document.getElementById('teste-resultado');
+    const btn = document.getElementById('btn-teste');
+
+    if (!telefone || !mensagem) {
+        resultado.textContent = 'Preencha telefone e mensagem';
+        resultado.className = 'text-sm text-red-600';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    resultado.textContent = '';
+
+    fetch('/wapi/teste/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefone, mensagem })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultado.textContent = 'Enviado!';
+            resultado.className = 'text-sm text-green-600';
+        } else {
+            resultado.textContent = 'Erro: ' + (data.error || 'Falha');
+            resultado.className = 'text-sm text-red-600';
+        }
+    })
+    .catch(() => {
+        resultado.textContent = 'Erro de conexao';
+        resultado.className = 'text-sm text-red-600';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Enviar';
+    });
+}
+
+function salvarAgendamentos() {
+    const agendamentos = [];
+    document.querySelectorAll('[data-ag-id]').forEach(div => {
+        const id = div.dataset.agId;
+        const ativo = div.querySelector('.ag-ativo').checked;
+        const horario = div.querySelector('.ag-horario').value;
+        const dias = [];
+        div.querySelectorAll('.ag-dia:checked').forEach(cb => dias.push(cb.value));
+
+        agendamentos.push({ id: parseInt(id), ativo, horario, dias_semana: dias.join(',') });
+    });
+
+    fetch('/wapi/agendamentos/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendamentos })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const btn = document.getElementById('btn-salvar-ag');
+            btn.textContent = 'Salvo!';
+            btn.className = 'px-4 py-2 bg-green-600 text-white rounded-lg text-sm';
+            setTimeout(() => {
+                btn.textContent = 'Salvar';
+                btn.className = 'px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm';
+            }, 2000);
+        }
+    })
+    .catch(() => alert('Erro ao salvar'));
+}
+
+function cobrarTodos() {
+    if (!confirm('Enviar cobrança via WhatsApp para TODAS as pessoas externas com pendências?')) return;
+    const btn = document.getElementById('btn-cobrar-todos');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    fetch('/wapi/cobrar-todos/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken }
+    })
+    .then(r => r.json())
+    .then(data => {
+        let msg = `Enviados: ${data.enviados} | Erros: ${data.erros}`;
+        if (data.detalhes) {
+            data.detalhes.forEach(d => {
+                msg += `\n${d.status === 'ok' ? '✓' : '✗'} ${d.nome}: ${d.pendencias} pendência(s)`;
+            });
+        }
+        alert(msg);
+        if (data.enviados > 0) location.reload();
+    })
+    .catch(() => alert('Erro de conexão'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Cobrar Todos Agora';
+    });
+}
+
+function cobrarDependencia2(nome, telefone) {
+    if (!confirm(`Enviar cobrança para ${nome}?`)) return;
+
+    fetch('/wapi/cobrar/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, telefone, motivo: '' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) { alert('Cobrança enviada!'); location.reload(); }
+        else alert('Erro: ' + (data.error || 'Falha'));
+    })
+    .catch(() => alert('Erro de conexão'));
+}
+
+function executarAgendamento(tipo, btn) {
+    const labels = {
+        'lembrete_diario': 'Lembretes Diários',
+        'cobranca_funcionarios': 'Cobranças Funcionários',
+        'cobranca_externos': 'Cobranças Externos',
+        'resumo_dependencias': 'Resumo Dependências',
+        'contas_pagar': 'Lembrete Contas a Pagar',
+    };
+    if (!confirm(`Executar "${labels[tipo] || tipo}" agora?`)) return;
+
+    const originalText = btn.textContent;
+    const originalClass = btn.className;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-pulse">Enviando...</span>';
+
+    fetch('/wapi/executar/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const env = data.enviados || 0;
+        const err = data.erros || 0;
+
+        // Mostrar detalhes se houver
+        let msg = `Enviados: ${env} | Erros: ${err}`;
+        if (data.detalhes && data.detalhes.length > 0) {
+            data.detalhes.forEach(d => {
+                const icon = d.status === 'ok' ? '✓' : d.status === 'skip' ? '⏭' : '✗';
+                // Contas a pagar retorna contas_hoje e contas_atrasadas
+                if (d.contas_hoje !== undefined || d.contas_atrasadas !== undefined) {
+                    msg += `\n${icon} ${d.nome}: ${d.contas_hoje || 0} hoje, ${d.contas_atrasadas || 0} atrasada(s)`;
+                } else {
+                    msg += `\n${icon} ${d.nome}: ${d.pendencias || 0} pendência(s)`;
+                }
+                if (d.motivo) msg += ` (${d.motivo})`;
+                if (d.error) msg += ` - ${d.error}`;
+            });
+        }
+        if (data.error) {
+            msg += `\n⚠️ ${data.error}`;
+        }
+        if (data.debug && env === 0 && err === 0) {
+            msg += `\n\nDebug: ${data.debug.motivo || 'Nenhuma pendência encontrada'}`;
+            msg += `\nItens encontrados: ${data.debug.total_itens_encontrados || 0}`;
+            msg += `\nPessoas: ${data.debug.pessoas_com_pendencias || 0}`;
+        }
+        alert(msg);
+
+        btn.innerHTML = `<span>${env} enviado(s), ${err} erro(s)</span>`;
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.className = originalClass;
+            btn.disabled = false;
+            if (env > 0) location.reload();
+        }, 2000);
+    })
+    .catch((e) => {
+        alert('Erro de conexão: ' + e.message);
+        btn.innerHTML = '<span class="text-red-200">Erro!</span>';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.className = originalClass;
+            btn.disabled = false;
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block sidebar %}
+{{ block.super }}
+
+{% if user.is_superuser %}
+<div class="module" style="margin-top: 20px;">
+    <table>
+        <caption>
+            <a href="{% url 'admin_schema' %}" class="section" title="Documentação do Schema">
+                Documentação
+            </a>
+        </caption>
+        <tr>
+            <th scope="row">
+                <a href="{% url 'admin_schema' %}" style="color: #447e9b;">
+                    Schema do Banco de Dados
+                </a>
+            </th>
+            <td>&nbsp;</td>
+            <td>&nbsp;</td>
+        </tr>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

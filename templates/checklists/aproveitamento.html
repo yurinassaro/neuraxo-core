@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+
+{% block title %}Aproveitamento - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Aproveitamento</h1>
+    <p class="text-gray-600">{% if ver_todos %}Todos os funcionários{% else %}{{ pessoa_visualizada.nome }}{% endif %}</p>
+</div>
+
+<!-- Filtros -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        {% if pessoa.is_gestor and pessoas_lista %}
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Funcionário</label>
+            <select name="pessoa" class="px-3 py-2 border rounded-lg">
+                <option value="">Eu mesmo</option>
+                <option value="todos" {% if ver_todos %}selected{% endif %}>Todos</option>
+                {% for p in pessoas_lista %}
+                <option value="{{ p.id }}" {% if not ver_todos and pessoa_visualizada and pessoa_visualizada.id == p.id %}selected{% endif %}>{{ p.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Mês</label>
+            <select name="mes" class="px-3 py-2 border rounded-lg">
+                {% for num, nome in meses %}
+                <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Ano</label>
+            <select name="ano" class="px-3 py-2 border rounded-lg">
+                {% for a in anos %}
+                <option value="{{ a }}" {% if ano == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            Filtrar
+        </button>
+    </form>
+</div>
+
+<!-- Cards de Resumo -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500 mb-1">Média do Mês</div>
+        <div class="text-4xl font-bold {% if media_mes >= 80 %}text-green-600{% elif media_mes >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+            {{ media_mes|floatformat:0 }}%
+        </div>
+        <div class="mt-2 bg-gray-200 rounded-full h-2">
+            <div class="h-2 rounded-full {% if media_mes >= 80 %}bg-green-500{% elif media_mes >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}" style="width: {{ media_mes }}%"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500 mb-1">Tempo Trabalhado</div>
+        <div class="text-4xl font-bold text-indigo-600">
+            {% widthratio tempo_total_mes 3600 1 %}h
+        </div>
+        <div class="text-sm text-gray-500">no mês</div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500 mb-1">Dias Registrados</div>
+        <div class="text-4xl font-bold text-gray-800">
+            {{ aproveitamentos.count }}
+        </div>
+        <div class="text-sm text-gray-500">dias com atividade</div>
+    </div>
+</div>
+
+<!-- Gráfico de Barras (simplificado) -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-4">Aproveitamento Diário</h2>
+    <div class="flex items-end space-x-1 h-48 overflow-x-auto pb-4">
+        {% for dia in dados_grafico %}
+        <div class="flex flex-col items-center min-w-[30px]">
+            <div class="w-6 bg-gray-200 rounded-t relative" style="height: 150px;">
+                {% with perc=dia.percentual|default_if_none:-1 %}
+                {% if perc >= 0 %}
+                <div class="absolute bottom-0 w-full rounded-t transition-all duration-300
+                    {% if perc >= 80 %}bg-green-500{% elif perc >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                    style="height: {{ perc|floatformat:0 }}%;"
+                    title="{{ dia.data|date:'d/m' }}: {{ perc|floatformat:0 }}% ({{ dia.concluidas }}/{{ dia.total }})">
+                </div>
+                {% endif %}
+                {% endwith %}
+            </div>
+            <span class="text-xs text-gray-500 mt-1">{{ dia.dia }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="flex justify-center space-x-6 mt-4 text-sm">
+        <span class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded mr-2"></span> 80%+</span>
+        <span class="flex items-center"><span class="w-3 h-3 bg-yellow-500 rounded mr-2"></span> 50-79%</span>
+        <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded mr-2"></span> &lt;50%</span>
+    </div>
+</div>
+
+<!-- Tabela de Aproveitamento por Dia -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-4">Detalhamento por Dia</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b">
+                    <th class="text-left py-2 px-3">Data</th>
+                    {% if ver_todos %}<th class="text-left py-2 px-3">Pessoa</th>{% endif %}
+                    <th class="text-center py-2 px-3">Concluídas</th>
+                    <th class="text-center py-2 px-3">Total</th>
+                    <th class="text-center py-2 px-3">Aproveitamento</th>
+                    <th class="text-center py-2 px-3">Tempo</th>
+                    <th class="text-center py-2 px-3">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for aprov in aproveitamentos %}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-2 px-3">{{ aprov.data|date:"d/m/Y" }}</td>
+                    {% if ver_todos %}<td class="py-2 px-3 text-sm">{{ aprov.pessoa.nome }}</td>{% endif %}
+                    <td class="py-2 px-3 text-center">{{ aprov.tarefas_concluidas }}</td>
+                    <td class="py-2 px-3 text-center">{{ aprov.total_tarefas }}</td>
+                    <td class="py-2 px-3 text-center">
+                        <span class="px-2 py-1 rounded text-sm font-medium
+                            {% if aprov.percentual >= 80 %}bg-green-100 text-green-800
+                            {% elif aprov.percentual >= 50 %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ aprov.percentual|floatformat:0 }}%
+                        </span>
+                    </td>
+                    <td class="py-2 px-3 text-center font-mono text-sm">{{ aprov.get_tempo_formatado }}</td>
+                    <td class="py-2 px-3 text-center">
+                        <a href="{% url 'aproveitamento_dia' aprov.data|date:'Y-m-d' %}{% if ver_todos %}?pessoa={{ aprov.pessoa.id }}{% elif pessoa_visualizada and pessoa_visualizada.id != pessoa.id %}?pessoa={{ pessoa_visualizada.id }}{% endif %}"
+                           class="text-indigo-600 hover:underline text-sm">Ver detalhes</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if ver_todos %}7{% else %}6{% endif %}" class="py-4 text-center text-gray-500">Nenhum registro para este período.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Tarefas Não Concluídas -->
+{% if tarefas_nao_concluidas %}
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold mb-4 text-red-600">Tarefas Não Concluídas</h2>
+    <div class="space-y-3">
+        {% for tarefa in tarefas_nao_concluidas %}
+        <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="text-sm text-gray-500">{{ tarefa.data_referencia|date:"d/m/Y" }}</span>
+                        <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ tarefa.template.empresa.cor }}20; color: {{ tarefa.template.empresa.cor }};">
+                            {{ tarefa.template.empresa.nome }}
+                        </span>
+                    </div>
+                    <h3 class="font-medium">{{ tarefa.template.titulo }}{% if ver_todos %} <span class="text-sm text-gray-500">- {{ tarefa.responsavel.nome }}</span>{% endif %}</h3>
+                    {% if tarefa.justificativa %}
+                    <p class="text-sm text-gray-600 mt-1">
+                        <strong>Motivo:</strong> {{ tarefa.justificativa }}
+                    </p>
+                    {% else %}
+                    <p class="text-sm text-red-600 mt-1">
+                        <em>Sem justificativa</em>
+                    </p>
+                    {% endif %}
+                </div>
+                <a href="{% url 'detalhe_tarefa' tarefa.id %}" class="text-indigo-600 hover:underline text-sm">
+                    Ver tarefa
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}Minhas Tarefas - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Minhas Tarefas</h1>
+    <p class="text-gray-600">{{ hoje|date:"d/m/Y" }}</p>
+</div>
+
+<!-- Filtros -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Status</label>
+            <select name="status" class="px-3 py-2 border rounded-lg">
+                <option value="">Todos</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm text-gray-600 mb-1">Workspace</label>
+            <select name="workspace" class="px-3 py-2 border rounded-lg">
+                <option value="">Todos</option>
+                {% for ws in workspaces %}
+                <option value="{{ ws.id }}" {% if workspace_filter == ws.id|stringformat:"s" %}selected{% endif %}>{{ ws.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            Filtrar
+        </button>
+        {% if status_filter or workspace_filter %}
+        <a href="{% url 'minhas_tarefas' %}" class="px-4 py-2 text-gray-600 hover:underline">Limpar</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Lista de Tarefas -->
+<div class="space-y-4">
+    {% for item in items %}
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <div class="flex items-center space-x-2 mb-2">
+                    {% if item.status == 'concluido' %}
+                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Concluído</span>
+                    {% elif item.status == 'atrasado' %}
+                    <span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Atrasado</span>
+                    {% elif item.status == 'em_andamento' %}
+                    <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Em Andamento</span>
+                    {% else %}
+                    <span class="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">Pendente</span>
+                    {% endif %}
+
+                    {% if item.template.prioridade == 3 %}
+                    <span class="px-2 py-1 text-xs bg-red-500 text-white rounded">Prioridade Alta</span>
+                    {% elif item.template.prioridade == 2 %}
+                    <span class="px-2 py-1 text-xs bg-yellow-500 text-white rounded">Prioridade Média</span>
+                    {% endif %}
+
+                    <span class="text-xs text-gray-500">{{ item.template.workspace.nome }}</span>
+                </div>
+
+                <h3 class="font-semibold text-lg {% if item.status == 'concluido' %}line-through text-gray-400{% endif %}">
+                    <a href="{% url 'detalhe_tarefa' item.id %}" class="hover:text-indigo-600">
+                        {{ item.template.titulo }}
+                    </a>
+                </h3>
+
+                {% if item.template.descricao %}
+                <p class="text-gray-600 mt-1">{{ item.template.descricao }}</p>
+                {% endif %}
+
+                <div class="flex items-center space-x-4 text-sm text-gray-500 mt-2">
+                    <span>Prazo: {{ item.data_limite|date:"d/m/Y H:i" }}</span>
+                    {% if item.iniciado_em %}
+                    <span class="text-blue-600">Iniciado: {{ item.iniciado_em|date:"H:i" }}</span>
+                    {% endif %}
+                    {% if item.get_tempo_total > 0 %}
+                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">{{ item.get_tempo_formatado }}</span>
+                    {% endif %}
+                    {% if item.concluido_em %}
+                    <span class="text-green-600">Concluído: {{ item.concluido_em|date:"H:i" }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Barra de progresso mini -->
+                {% if item.subtarefas.count > 0 %}
+                <div class="mt-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2">
+                            <div class="bg-indigo-600 h-2 rounded-full" style="width: {{ item.get_progresso }}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ item.get_progresso }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-col space-y-2 ml-4">
+                <a href="{% url 'detalhe_tarefa' item.id %}"
+                   class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200 text-center">
+                    Abrir
+                </a>
+
+                {% if item.status != 'concluido' %}
+                <form action="{% url 'marcar_concluido' item.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
+                        Concluir
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if item.observacoes %}
+        <div class="mt-3 p-3 bg-gray-50 rounded">
+            <p class="text-sm text-gray-600"><strong>Observações:</strong> {{ item.observacoes }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        <p>Nenhuma tarefa encontrada.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

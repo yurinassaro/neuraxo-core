@@ -1,0 +1,615 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - NeuraxoCore{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho -->
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Olá, {{ pessoa.nome }}!</h1>
+            <p class="text-gray-600">{{ hoje|date:"l, d \d\e F \d\e Y" }}</p>
+        </div>
+        {% if pessoa.is_gestor %}
+        <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">Gestor</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Alertas -->
+{% if demandas_atrasadas or pendentes_justificativa > 0 or total_dependencias_de_mim > 0 %}
+<div class="mb-6 space-y-2">
+    {% if total_dependencias_de_mim > 0 %}
+    <a href="#dependencias-de-mim" class="block p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg hover:bg-orange-100 transition">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-orange-500 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+            </svg>
+            <div>
+                <span class="font-medium text-orange-800">{{ total_dependencias_de_mim }} pessoa(s) aguardando você!</span>
+                <span class="text-orange-600 text-sm ml-2">Veja abaixo</span>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+
+    {% if demandas_atrasadas %}
+    <a href="{% url 'lista_demandas' %}" class="block p-4 bg-red-50 border-l-4 border-red-500 rounded-lg hover:bg-red-100 transition">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <span class="font-medium text-red-800">{{ demandas_atrasadas.count }} demanda(s) ATRASADA(S)</span>
+                <span class="text-red-600 text-sm ml-2">Clique para ver</span>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+
+    {% if pendentes_justificativa > 0 %}
+    <a href="{% url 'pendentes_justificativa' %}" class="block p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg hover:bg-yellow-100 transition">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <div>
+                <span class="font-medium text-yellow-800">{{ pendentes_justificativa }} tarefa(s) pendente(s) de justificativa</span>
+                <span class="text-yellow-600 text-sm ml-2">Clique para preencher</span>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+
+    {% if demandas_urgentes %}
+    <div class="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span class="font-medium text-orange-800">{{ demandas_urgentes.count }} demanda(s) com prazo próximo (até 48h)</span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Cards de Resumo do Dia -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <!-- Aproveitamento do Dia -->
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-500">Aproveitamento Hoje</span>
+            <div class="w-10 h-10 rounded-full flex items-center justify-center
+                {% if aproveitamento_hoje >= 80 %}bg-green-100{% elif aproveitamento_hoje >= 50 %}bg-yellow-100{% else %}bg-red-100{% endif %}">
+                <svg class="w-5 h-5 {% if aproveitamento_hoje >= 80 %}text-green-600{% elif aproveitamento_hoje >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="text-3xl font-bold {% if aproveitamento_hoje >= 80 %}text-green-600{% elif aproveitamento_hoje >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+            {{ aproveitamento_hoje }}%
+        </div>
+        <div class="mt-2 bg-gray-200 rounded-full h-2">
+            <div class="h-2 rounded-full transition-all {% if aproveitamento_hoje >= 80 %}bg-green-500{% elif aproveitamento_hoje >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}" style="width: {{ aproveitamento_hoje }}%"></div>
+        </div>
+        <div class="text-xs text-gray-500 mt-1">{{ tarefas_concluidas }}/{{ total_tarefas }} tarefas</div>
+    </div>
+
+    <!-- Tempo Trabalhado -->
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-500">Tempo Hoje</span>
+            <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="text-3xl font-bold text-indigo-600">{{ tempo_hoje }}</div>
+        <div class="text-xs text-gray-500 mt-3">Tempo registrado</div>
+    </div>
+
+    <!-- Demandas Abertas -->
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-500">Demandas Abertas</span>
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="text-3xl font-bold text-blue-600">{{ total_demandas }}</div>
+        {% if demandas_atrasadas %}
+        <div class="text-xs text-red-500 mt-3">{{ demandas_atrasadas.count }} atrasada(s)</div>
+        {% else %}
+        <div class="text-xs text-gray-500 mt-3">Nenhuma atrasada</div>
+        {% endif %}
+    </div>
+
+    <!-- Tarefas Pendentes -->
+    <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-500">Pendentes Hoje</span>
+            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+            </div>
+        </div>
+        <div class="text-3xl font-bold text-gray-700">{{ tarefas_pendentes|length }}</div>
+        <a href="{% url 'rotina_diaria' %}" class="text-xs text-indigo-600 hover:underline mt-3 inline-block">Ver rotina →</a>
+    </div>
+</div>
+
+<!-- Gráfico de Aproveitamento (Últimos 7 dias) -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-4">Aproveitamento - Últimos 7 dias</h2>
+    <div class="flex items-end justify-between h-32 space-x-2">
+        {% for dia in ultimos_7_dias %}
+        <div class="flex-1 flex flex-col items-center">
+            <div class="w-full bg-gray-100 rounded-t relative" style="height: 100px;">
+                {% if dia.percentual is not None %}
+                <div class="absolute bottom-0 w-full rounded-t transition-all duration-500
+                    {% if dia.percentual >= 80 %}bg-green-500{% elif dia.percentual >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                    style="height: {{ dia.percentual }}%;"
+                    title="{{ dia.data|date:'d/m' }}: {{ dia.percentual|floatformat:0 }}%">
+                </div>
+                <span class="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-medium
+                    {% if dia.percentual >= 80 %}text-green-600{% elif dia.percentual >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                    {{ dia.percentual|floatformat:0 }}%
+                </span>
+                {% else %}
+                <div class="absolute inset-0 flex items-center justify-center text-gray-300 text-xs">-</div>
+                {% endif %}
+            </div>
+            <span class="text-xs text-gray-500 mt-2 {% if forloop.last %}font-bold text-indigo-600{% endif %}">{{ dia.dia }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="flex justify-center space-x-6 mt-4 text-xs">
+        <span class="flex items-center"><span class="w-3 h-3 bg-green-500 rounded mr-1"></span> 80%+</span>
+        <span class="flex items-center"><span class="w-3 h-3 bg-yellow-500 rounded mr-1"></span> 50-79%</span>
+        <span class="flex items-center"><span class="w-3 h-3 bg-red-500 rounded mr-1"></span> &lt;50%</span>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Tarefas Pendentes Hoje -->
+    <div class="bg-white rounded-xl shadow">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Tarefas Pendentes Hoje</h2>
+            <a href="{% url 'rotina_diaria' %}" class="text-indigo-600 hover:underline text-sm">Ver todas →</a>
+        </div>
+        {% if tarefas_pendentes %}
+        <ul class="divide-y max-h-80 overflow-y-auto">
+            {% for item in tarefas_pendentes %}
+            <li class="p-4 hover:bg-gray-50 flex items-center justify-between">
+                <div class="flex items-center space-x-3 flex-1 min-w-0">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                        {% if item.status == 'em_andamento' %}bg-blue-100 text-blue-600{% elif item.status == 'dependente' %}bg-orange-100 text-orange-600{% else %}bg-gray-100 text-gray-600{% endif %}">
+                        {{ forloop.counter }}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-medium truncate">{{ item.template.titulo }}</p>
+                        <p class="text-xs text-gray-500">
+                            {% if item.template.empresa %}{{ item.template.empresa.nome }}{% endif %}
+                            {% if item.status == 'dependente' %}<span class="text-orange-600 ml-1">• Standby</span>{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 ml-2">
+                    {% if item.template.prioridade == 3 %}
+                    <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded">Alta</span>
+                    {% endif %}
+                    <a href="{% url 'detalhe_tarefa' item.id %}" class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200">
+                        Abrir
+                    </a>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="p-8 text-center">
+            <svg class="w-12 h-12 mx-auto text-green-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="text-green-600 font-medium">Todas as tarefas concluídas!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Minhas Demandas -->
+    <div class="bg-white rounded-xl shadow">
+        <div class="p-4 border-b flex justify-between items-center">
+            <h2 class="text-lg font-semibold">Minhas Demandas</h2>
+            <a href="{% url 'lista_demandas' %}" class="text-indigo-600 hover:underline text-sm">Ver todas →</a>
+        </div>
+        {% if minhas_demandas %}
+        <ul class="divide-y max-h-80 overflow-y-auto">
+            {% for demanda in minhas_demandas %}
+            <li class="p-4 hover:bg-gray-50">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ demanda.empresa.cor }}20; color: {{ demanda.empresa.cor }};">
+                                {{ demanda.empresa.nome }}
+                            </span>
+                            {% if demanda.prazo < agora %}
+                            <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded">ATRASADA</span>
+                            {% endif %}
+                        </div>
+                        <p class="font-medium truncate">{{ demanda.titulo }}</p>
+                        <p class="text-xs text-gray-500">Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    <a href="{% url 'detalhe_demanda' demanda.id %}" class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200 ml-2">
+                        Abrir
+                    </a>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="p-8 text-center text-gray-500">
+            <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            <p>Nenhuma demanda aberta</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ========== DEPENDÊNCIAS DE MIM ========== -->
+{% if total_dependencias_de_mim > 0 %}
+<div class="border-t-4 border-orange-500 pt-6 mt-8 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center space-x-2">
+            <div class="relative">
+                <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                </svg>
+                <span class="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">{{ total_dependencias_de_mim }}</span>
+            </div>
+            <h2 class="text-xl font-bold text-orange-800">Pessoas aguardando você</h2>
+        </div>
+    </div>
+
+    <div class="space-y-3">
+        {% for item in dependencias_de_mim_tarefas %}
+        <div class="bg-white rounded-xl shadow-sm border-l-4 border-orange-500 p-4 hover:shadow-md transition">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded">Rotina</span>
+                        {% if item.template.empresa %}
+                        <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ item.template.empresa.cor }}20; color: {{ item.template.empresa.cor }};">
+                            {{ item.template.empresa.nome }}
+                        </span>
+                        {% endif %}
+                        <span class="text-xs text-gray-500">{{ item.data_referencia|date:"d/m/Y" }}</span>
+                    </div>
+                    <h3 class="font-semibold text-gray-800">{{ item.template.titulo }}</h3>
+                    <div class="flex items-center space-x-2 mt-2">
+                        <div class="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center">
+                            <svg class="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
+                        </div>
+                        <span class="text-sm text-orange-700"><strong>{{ item.responsavel.nome }}</strong> está aguardando você</span>
+                    </div>
+                    {% if item.motivo_dependencia %}
+                    <p class="text-sm text-gray-600 mt-1 ml-8 italic">"{{ item.motivo_dependencia }}"</p>
+                    {% endif %}
+                </div>
+                <button onclick="resolverDependenciaTarefa({{ item.id }})"
+                        class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 flex items-center space-x-1 ml-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span>Resolvido</span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% for demanda in dependencias_de_mim_demandas %}
+        <div class="bg-white rounded-xl shadow-sm border-l-4 border-orange-500 p-4 hover:shadow-md transition">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Demanda</span>
+                        <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ demanda.empresa.cor }}20; color: {{ demanda.empresa.cor }};">
+                            {{ demanda.empresa.nome }}
+                        </span>
+                        <span class="text-xs text-gray-500">Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <h3 class="font-semibold text-gray-800">{{ demanda.titulo }}</h3>
+                    <div class="flex items-center space-x-2 mt-2">
+                        <div class="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center">
+                            <svg class="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
+                        </div>
+                        <span class="text-sm text-orange-700"><strong>{{ demanda.responsavel.nome }}</strong> está aguardando você</span>
+                    </div>
+                    {% if demanda.motivo_dependencia %}
+                    <p class="text-sm text-gray-600 mt-1 ml-8 italic">"{{ demanda.motivo_dependencia }}"</p>
+                    {% endif %}
+                </div>
+                <button onclick="resolverDependenciaDemanda({{ demanda.id }})"
+                        class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 flex items-center space-x-1 ml-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span>Resolvido</span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function resolverDependenciaTarefa(itemId) {
+    if (!confirm('Confirma que esta dependência foi resolvida?')) return;
+
+    fetch(`/dependencia/${itemId}/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependente_id: null })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') location.reload();
+    });
+}
+
+function resolverDependenciaDemanda(demandaId) {
+    if (!confirm('Confirma que esta dependência foi resolvida?')) return;
+
+    fetch(`/demanda/${demandaId}/dependencia/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependente_id: null })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') location.reload();
+    });
+}
+</script>
+{% endif %}
+
+{% if pessoa.is_gestor and equipe_stats %}
+<!-- ========== SEÇÃO DO GESTOR ========== -->
+<div class="border-t-4 border-purple-500 pt-6 mt-8">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-2">
+            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            <h2 class="text-xl font-bold text-purple-800">Visão da Equipe</h2>
+        </div>
+        <!-- Filtro por Empresa -->
+        {% if empresas.count > 1 %}
+        <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-500">Empresa:</span>
+            <div class="flex space-x-1">
+                <a href="?{% if empresa_selecionada %}{% else %}empresa={% endif %}"
+                   class="px-3 py-1 text-sm rounded-full {% if not empresa_selecionada %}bg-purple-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+                    Todas
+                </a>
+                {% for emp in empresas %}
+                <a href="?empresa={{ emp.id }}"
+                   class="px-3 py-1 text-sm rounded-full {% if empresa_selecionada.id == emp.id %}bg-purple-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+                    {{ emp.nome }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Cards resumo da equipe -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-purple-50 rounded-xl p-4">
+            <div class="text-sm text-purple-600">Total Funcionários</div>
+            <div class="text-2xl font-bold text-purple-800">{{ equipe_stats|length }}</div>
+        </div>
+        <div class="bg-green-50 rounded-xl p-4">
+            <div class="text-sm text-green-600">Aproveitamento Médio</div>
+            <div class="text-2xl font-bold text-green-800">{{ aproveitamento_medio }}%</div>
+        </div>
+        <div class="bg-red-50 rounded-xl p-4">
+            <div class="text-sm text-red-600">Demandas Atrasadas</div>
+            <div class="text-2xl font-bold text-red-800">{{ demandas_equipe.count }}</div>
+        </div>
+        <div class="bg-blue-50 rounded-xl p-4">
+            <div class="text-sm text-blue-600">Empresas</div>
+            <div class="text-2xl font-bold text-blue-800">{% if empresa_selecionada %}1{% else %}{{ empresas.count }}{% endif %}</div>
+        </div>
+    </div>
+
+    <!-- Meus Projetos -->
+    {% if meus_projetos %}
+    <div class="bg-white rounded-xl shadow overflow-hidden mb-6">
+        <div class="p-4 border-b bg-indigo-50 flex justify-between items-center">
+            <h3 class="font-semibold text-indigo-800">Projetos Ativos</h3>
+            <a href="{% url 'lista_projetos' %}" class="text-indigo-600 hover:underline text-sm">Ver todos &rarr;</a>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+            {% for proj in meus_projetos %}
+            <a href="{% url 'detalhe_projeto' proj.id %}" class="border rounded-lg p-4 hover:shadow-md transition block">
+                <div class="flex items-center space-x-2 mb-2">
+                    <div class="w-3 h-3 rounded-full" style="background-color: {{ proj.cor }};"></div>
+                    <span class="text-xs rounded px-2 py-0.5" style="background-color: {{ proj.empresa.cor }}20; color: {{ proj.empresa.cor }};">{{ proj.empresa.nome }}</span>
+                </div>
+                <h4 class="font-medium text-gray-800 mb-2">{{ proj.titulo }}</h4>
+                <div class="bg-gray-200 rounded-full h-2 mb-1">
+                    <div class="h-2 rounded-full" style="width: {{ proj.get_progresso }}%; background-color: {{ proj.cor }};"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>{{ proj.etapas_concluidas }}/{{ proj.total_etapas }} etapas</span>
+                    <span>{{ proj.get_progresso }}%</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabela da Equipe -->
+    <div class="bg-white rounded-xl shadow overflow-hidden mb-6">
+        <div class="p-4 border-b bg-purple-50">
+            <h3 class="font-semibold text-purple-800">Aproveitamento da Equipe Hoje</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Funcionário</th>
+                        <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Tarefas</th>
+                        <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Aproveitamento</th>
+                        <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Demandas</th>
+                        <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for e in equipe_stats %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="py-3 px-4">
+                            <div class="font-medium">{{ e.pessoa.nome }}</div>
+                            <div class="text-xs text-gray-500">{{ e.pessoa.cargo.nome|default:"-" }}</div>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <span class="text-green-600 font-medium">{{ e.tarefas_concluidas }}</span>
+                            <span class="text-gray-400">/</span>
+                            <span>{{ e.tarefas_total }}</span>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <div class="w-20 bg-gray-200 rounded-full h-2">
+                                    <div class="h-2 rounded-full {% if e.aproveitamento >= 80 %}bg-green-500{% elif e.aproveitamento >= 50 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                                         style="width: {{ e.aproveitamento }}%"></div>
+                                </div>
+                                <span class="text-sm font-medium {% if e.aproveitamento >= 80 %}text-green-600{% elif e.aproveitamento >= 50 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                    {{ e.aproveitamento }}%
+                                </span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <span>{{ e.demandas_abertas }}</span>
+                            {% if e.demandas_atrasadas > 0 %}
+                            <span class="text-red-600 text-xs ml-1">({{ e.demandas_atrasadas }} atrasada)</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            {% if e.aproveitamento >= 80 %}
+                            <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Excelente</span>
+                            {% elif e.aproveitamento >= 50 %}
+                            <span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Regular</span>
+                            {% elif e.tarefas_total == 0 %}
+                            <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">Sem tarefas</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Atenção</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-gray-500">Nenhum funcionário na equipe</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Demandas da Equipe -->
+    {% if demandas_equipe %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+        <div class="p-4 border-b bg-purple-50 flex justify-between items-center">
+            <h3 class="font-semibold text-purple-800">Demandas da Equipe (por prazo)</h3>
+            <a href="{% url 'lista_demandas' %}" class="text-purple-600 hover:underline text-sm">Ver todas →</a>
+        </div>
+        <ul class="divide-y max-h-96 overflow-y-auto">
+            {% for demanda in demandas_equipe %}
+            <li class="p-4 hover:bg-gray-50 flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="px-2 py-0.5 text-xs rounded" style="background-color: {{ demanda.empresa.cor }}20; color: {{ demanda.empresa.cor }};">
+                            {{ demanda.empresa.nome }}
+                        </span>
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                            {{ demanda.responsavel.nome }}
+                        </span>
+                        {% if demanda.prazo < agora %}
+                        <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded animate-pulse">ATRASADA</span>
+                        {% endif %}
+                    </div>
+                    <p class="font-medium truncate">{{ demanda.titulo }}</p>
+                    <p class="text-xs text-gray-500">Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</p>
+                </div>
+                <a href="{% url 'detalhe_demanda' demanda.id %}" class="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded hover:bg-purple-200 ml-2">
+                    Ver
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Links Rápidos -->
+<div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+    <a href="{% url 'rotina_diaria' %}" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+            </svg>
+        </div>
+        <span class="font-medium">Rotina Diária</span>
+    </a>
+    <a href="{% url 'lista_demandas' %}" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+            </svg>
+        </div>
+        <span class="font-medium">Pendências</span>
+    </a>
+    <a href="{% url 'aproveitamento' %}" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+        </div>
+        <span class="font-medium">Aproveitamento</span>
+    </a>
+    {% if pessoa.is_gestor %}
+    <a href="{% url 'criar_demanda' %}" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+            </svg>
+        </div>
+        <span class="font-medium">Nova Demanda</span>
+    </a>
+    {% else %}
+    <a href="{% url 'pendentes_justificativa' %}" class="bg-white rounded-xl shadow p-4 hover:shadow-lg transition flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+        </div>
+        <span class="font-medium">Justificativas</span>
+    </a>
+    {% endif %}
+</div>
+
+{% endblock %}

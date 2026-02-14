@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuraxoCore - Sistema de Gestão de Rotinas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+        #acesso { scroll-margin-top: 80px; }
+    </style>
+</head>
+<body class="bg-white text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <span class="text-2xl font-bold text-indigo-600">NeuraxoCore</span>
+            <a href="#acesso" class="text-sm text-gray-600 hover:text-indigo-600 font-medium">Acessar</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="gradient-bg text-white py-24">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6">Gestão de Rotinas e Checklists para sua Empresa</h1>
+            <p class="text-xl md:text-2xl text-indigo-100 mb-10 max-w-3xl mx-auto">
+                Organize tarefas diárias, controle prazos e acompanhe a execução de processos com eficiência.
+            </p>
+            <div id="acesso" class="max-w-md mx-auto">
+                <label class="block text-indigo-100 text-sm mb-2">Digite o identificador da sua empresa para acessar</label>
+                <form onsubmit="acessarPainel(event)" class="flex gap-2">
+                    <input type="text" id="empresa-slug" placeholder="suaempresa" required
+                        class="flex-1 px-4 py-3 text-gray-800 text-lg rounded-lg outline-none" />
+                    <button type="submit" class="bg-indigo-900 text-white font-semibold px-6 py-3 rounded-lg hover:bg-indigo-800 transition">
+                        Acessar
+                    </button>
+                </form>
+                <p class="text-indigo-200 text-sm mt-2">suaempresa<strong class="text-white">.core.neuraxo.com.br</strong></p>
+                <p id="erro-slug" class="text-red-200 text-sm mt-2 hidden">Digite o identificador da sua empresa.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Funcionalidades -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-4">Funcionalidades</h2>
+            <p class="text-gray-600 text-center mb-12 max-w-2xl mx-auto">Tudo o que você precisa para manter sua operação organizada e sob controle.</p>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Checklists Diários</h3>
+                    <p class="text-gray-600">Crie templates de checklists e gere tarefas automaticamente todos os dias para cada colaborador.</p>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Multi-Empresa</h3>
+                    <p class="text-gray-600">Gerencie múltiplas empresas e equipes em um único painel, cada uma com seus próprios processos.</p>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Notificações WhatsApp</h3>
+                    <p class="text-gray-600">Receba alertas automáticos de tarefas pendentes e atrasadas diretamente no WhatsApp.</p>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Controle Financeiro</h3>
+                    <p class="text-gray-600">Gerencie contas a pagar com categorias, anexos e acompanhamento de status.</p>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Relatórios e Métricas</h3>
+                    <p class="text-gray-600">Dashboards com indicadores de conclusão, atrasos e desempenho por colaborador.</p>
+                </div>
+                <div class="bg-white rounded-xl p-8 shadow-sm hover:shadow-md transition">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Multi-Tenant (SaaS)</h3>
+                    <p class="text-gray-600">Cada cliente tem seu ambiente isolado e seguro, com dados completamente separados.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Como Funciona -->
+    <section class="py-20">
+        <div class="max-w-7xl mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-4">Como Funciona</h2>
+            <p class="text-gray-600 text-center mb-12 max-w-2xl mx-auto">Em poucos passos sua equipe estará organizada.</p>
+            <div class="grid md:grid-cols-4 gap-8 text-center">
+                <div>
+                    <div class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">1</div>
+                    <h3 class="font-semibold mb-2">Cadastre sua Empresa</h3>
+                    <p class="text-gray-600 text-sm">Crie seu ambiente exclusivo com subdomínio próprio.</p>
+                </div>
+                <div>
+                    <div class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">2</div>
+                    <h3 class="font-semibold mb-2">Configure os Checklists</h3>
+                    <p class="text-gray-600 text-sm">Defina templates com tarefas, horários e responsáveis.</p>
+                </div>
+                <div>
+                    <div class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">3</div>
+                    <h3 class="font-semibold mb-2">Tarefas Automáticas</h3>
+                    <p class="text-gray-600 text-sm">O sistema gera as tarefas diárias automaticamente.</p>
+                </div>
+                <div>
+                    <div class="w-14 h-14 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">4</div>
+                    <h3 class="font-semibold mb-2">Acompanhe Tudo</h3>
+                    <p class="text-gray-600 text-sm">Monitore execução, prazos e receba alertas em tempo real.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="gradient-bg text-white py-16">
+        <div class="max-w-3xl mx-auto px-4 text-center">
+            <h2 class="text-3xl font-bold mb-4">Pronto para organizar sua operação?</h2>
+            <p class="text-indigo-100 mb-8 text-lg">Entre em contato e comece a usar o NeuraxoCore hoje mesmo.</p>
+            <a href="https://wa.me/5511999999999" target="_blank" class="inline-block bg-white text-indigo-600 font-semibold px-8 py-3 rounded-lg text-lg hover:bg-indigo-50 transition">
+                Fale Conosco no WhatsApp
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-400 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <span class="text-white font-semibold">NeuraxoCore</span>
+            <p class="mt-2 text-sm">&copy; 2026 NeuraxoCore. Todos os direitos reservados.</p>
+        </div>
+    </footer>
+
+    <script>
+    function acessarPainel(e) {
+        e.preventDefault();
+        var slug = document.getElementById('empresa-slug').value.trim().toLowerCase().replace(/[^a-z0-9\-]/g, '');
+        if (!slug) {
+            document.getElementById('erro-slug').classList.remove('hidden');
+            return;
+        }
+        document.getElementById('erro-slug').classList.add('hidden');
+        window.location.href = 'https://' + slug + '.core.neuraxo.com.br/login/';
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Calendário - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div x-data="calendarioApp()" x-init="init()" x-cloak>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Calendário</h1>
+        <div class="flex items-center space-x-3">
+            <button @click="prevMonth()" class="p-2 rounded-lg hover:bg-gray-200 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <h2 class="text-lg font-semibold text-gray-700 w-48 text-center" x-text="monthYearLabel"></h2>
+            <button @click="nextMonth()" class="p-2 rounded-lg hover:bg-gray-200 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <button @click="goToday()" class="ml-2 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Hoje</button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="loading" class="text-center py-12">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <p class="mt-2 text-gray-500">Carregando eventos...</p>
+    </div>
+
+    <!-- Calendar Grid -->
+    <div x-show="!loading" class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <!-- Weekday Headers -->
+        <div class="grid grid-cols-7 bg-gray-50 border-b">
+            <template x-for="day in ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']">
+                <div class="py-3 text-center text-sm font-semibold text-gray-600" x-text="day"></div>
+            </template>
+        </div>
+
+        <!-- Days Grid -->
+        <div class="grid grid-cols-7">
+            <template x-for="(cell, idx) in cells" :key="idx">
+                <div
+                    @click="cell.day ? selectDate(cell.dateStr) : null"
+                    class="min-h-[90px] md:min-h-[110px] border-b border-r p-1.5 cursor-pointer transition"
+                    :class="{
+                        'bg-white hover:bg-gray-50': cell.day && !cell.isToday && !cell.hasOverdue,
+                        'bg-blue-50 ring-2 ring-inset ring-blue-400': cell.isToday,
+                        'bg-red-50': cell.hasOverdue && !cell.isToday,
+                        'bg-gray-50': !cell.day,
+                    }"
+                >
+                    <div class="flex items-center justify-between mb-1">
+                        <span
+                            class="text-sm font-medium"
+                            :class="{
+                                'text-blue-700 font-bold': cell.isToday,
+                                'text-gray-400': !cell.currentMonth,
+                                'text-gray-700': cell.currentMonth && !cell.isToday,
+                            }"
+                            x-text="cell.day || ''"
+                        ></span>
+                        <span x-show="cell.events && cell.events.length > 3" class="text-xs text-gray-400" x-text="'+' + (cell.events.length - 3)"></span>
+                    </div>
+                    <!-- Event dots -->
+                    <div class="flex flex-wrap gap-1">
+                        <template x-for="(ev, i) in (cell.events || []).slice(0, 3)" :key="i">
+                            <div class="hidden md:block w-full">
+                                <a :href="ev.url" @click.stop
+                                   class="block text-xs truncate rounded px-1 py-0.5 text-white mb-0.5"
+                                   :class="ev.concluido ? 'opacity-50 line-through' : ''"
+                                   :style="'background-color:' + ev.color"
+                                   :title="ev.title"
+                                   x-text="ev.title">
+                                </a>
+                            </div>
+                            <div class="md:hidden">
+                                <div class="w-2.5 h-2.5 rounded-full" :style="'background-color:' + ev.color" :class="ev.overdue ? 'ring-2 ring-red-400' : ''"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-blue-500"></div> Tarefas</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-orange-500"></div> Demandas</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-red-500"></div> Demandas Urgentes</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-emerald-500"></div> Contas a Pagar</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-purple-500"></div> Projetos</div>
+        <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-sm bg-red-100 ring-1 ring-red-300"></div> Dia com atraso</div>
+    </div>
+
+    <!-- Day Detail Panel (Modal) -->
+    <div x-show="selectedDate" x-transition
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+         @click.self="selectedDate = null" @keydown.escape.window="selectedDate = null">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between p-4 border-b">
+                <h3 class="text-lg font-semibold text-gray-800" x-text="selectedDateLabel"></h3>
+                <button @click="selectedDate = null" class="p-1 hover:bg-gray-100 rounded">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="overflow-y-auto p-4 space-y-2">
+                <template x-if="selectedEvents.length === 0">
+                    <p class="text-gray-400 text-center py-8">Nenhum evento neste dia.</p>
+                </template>
+                <template x-for="ev in selectedEvents" :key="ev.type + ev.id">
+                    <a :href="ev.url" class="block p-3 rounded-lg border hover:bg-gray-50 transition"
+                       :class="ev.overdue ? 'border-red-300 bg-red-50' : 'border-gray-200'">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="inline-block px-2 py-0.5 text-xs font-medium text-white rounded"
+                                  :style="'background-color:' + ev.color"
+                                  x-text="ev.type === 'tarefa' ? 'Tarefa' : ev.type === 'demanda' ? 'Demanda' : ev.type === 'conta' ? 'Conta' : 'Projeto'"></span>
+                            <span x-show="ev.overdue" class="text-xs text-red-600 font-medium">Atrasado</span>
+                            <span x-show="ev.concluido" class="text-xs text-green-600 font-medium">Concluído</span>
+                        </div>
+                        <p class="font-medium text-gray-800" :class="ev.concluido ? 'line-through opacity-60' : ''" x-text="ev.title"></p>
+                        <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                            <span x-show="ev.responsavel" x-text="ev.responsavel"></span>
+                            <span x-text="ev.status"></span>
+                        </div>
+                    </a>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+function calendarioApp() {
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const today = new Date();
+
+    return {
+        currentYear: today.getFullYear(),
+        currentMonth: today.getMonth(),
+        events: [],
+        cells: [],
+        loading: true,
+        selectedDate: null,
+
+        get monthYearLabel() {
+            return MESES[this.currentMonth] + ' ' + this.currentYear;
+        },
+        get selectedDateLabel() {
+            if (!this.selectedDate) return '';
+            const [y, m, d] = this.selectedDate.split('-');
+            return `${d}/${m}/${y}`;
+        },
+        get selectedEvents() {
+            if (!this.selectedDate) return [];
+            return this.events.filter(e => e.date === this.selectedDate);
+        },
+
+        async init() {
+            await this.loadEvents();
+        },
+
+        async loadEvents() {
+            this.loading = true;
+            try {
+                const resp = await fetch(`/api/calendario/eventos/?year=${this.currentYear}&month=${this.currentMonth + 1}`);
+                const data = await resp.json();
+                this.events = data.eventos || [];
+            } catch (e) {
+                this.events = [];
+            }
+            this.buildCells();
+            this.loading = false;
+        },
+
+        buildCells() {
+            const year = this.currentYear;
+            const month = this.currentMonth;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+            const cells = [];
+            // Empty cells before first day
+            for (let i = 0; i < firstDay; i++) {
+                cells.push({ day: null, dateStr: '', events: [], isToday: false, currentMonth: false, hasOverdue: false });
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const dayEvents = this.events.filter(e => e.date === dateStr);
+                cells.push({
+                    day: d,
+                    dateStr,
+                    events: dayEvents,
+                    isToday: dateStr === todayStr,
+                    currentMonth: true,
+                    hasOverdue: dayEvents.some(e => e.overdue),
+                });
+            }
+            // Fill remaining cells to complete last row
+            const remaining = 7 - (cells.length % 7);
+            if (remaining < 7) {
+                for (let i = 0; i < remaining; i++) {
+                    cells.push({ day: null, dateStr: '', events: [], isToday: false, currentMonth: false, hasOverdue: false });
+                }
+            }
+            this.cells = cells;
+        },
+
+        prevMonth() {
+            if (this.currentMonth === 0) { this.currentMonth = 11; this.currentYear--; }
+            else { this.currentMonth--; }
+            this.loadEvents();
+        },
+        nextMonth() {
+            if (this.currentMonth === 11) { this.currentMonth = 0; this.currentYear++; }
+            else { this.currentMonth++; }
+            this.loadEvents();
+        },
+        goToday() {
+            this.currentYear = today.getFullYear();
+            this.currentMonth = today.getMonth();
+            this.loadEvents();
+        },
+        selectDate(dateStr) {
+            this.selectedDate = dateStr;
+        },
+    };
+}
+</script>
+{% endblock %}

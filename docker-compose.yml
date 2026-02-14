@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: neuraxo_db
+    volumes:
+      - neuraxo_pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=neuraxo
+      - POSTGRES_USER=neuraxo
+      - POSTGRES_PASSWORD=neuraxo_s3cur3_2026
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neuraxo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .
+    container_name: neuraxo_web
+    ports:
+      - "8007:8000"
+    volumes:
+      - ./media:/app/media
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DJANGO_SETTINGS_MODULE=config.settings_production
+      - DEBUG=False
+      - SECRET_KEY=6rYd-yILCodzqYgGzfqfcR6vmW1LK38B7XZI_u5pVKxrKchVuoe3D3NZaHZiXyw71qU
+      - ALLOWED_HOSTS=neuraxo.com.br,www.neuraxo.com.br,.core.neuraxo.com.br,143.110.150.237,localhost,127.0.0.1
+      - CSRF_TRUSTED_ORIGINS=https://neuraxo.com.br,https://www.neuraxo.com.br,https://*.core.neuraxo.com.br,http://143.110.150.237
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=neuraxo
+      - DB_USER=neuraxo
+      - DB_PASSWORD=neuraxo_s3cur3_2026
+      - DB_HOST=db
+      - DB_PORT=5432
+      - WAPI_URL=${WAPI_URL:-}
+      - WAPI_TOKEN=${WAPI_TOKEN:-}
+      - WAPI_INSTANCE=${WAPI_INSTANCE:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  neuraxo_pgdata:

@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatorio por Projeto - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Relatorio por Projeto</h1>
+    <div class="flex items-center gap-3">
+        <form method="get" class="flex items-center gap-2">
+            <select name="empresa" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa.id == e.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+            <select name="projeto" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="">Selecione um projeto...</option>
+                {% for p in projetos %}
+                <option value="{{ p.id }}" {% if projeto and projeto.id == p.id %}selected{% endif %}>{{ p.titulo }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+{% if empresa %}
+
+{% if projeto and dados %}
+<!-- Detalhes do Projeto -->
+<div class="mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-800">{{ projeto.titulo }}</h2>
+                <p class="text-sm text-gray-500">{{ projeto.get_status_display }} - Criado em {{ projeto.criado_em|date:"d/m/Y" }}</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-sm font-medium
+                {% if dados.lucro >= 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                {% if dados.margem >= 0 %}Margem: {{ dados.margem|floatformat:1 }}%{% else %}Prejuizo{% endif %}
+            </span>
+        </div>
+
+        <!-- Cards de resumo -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="bg-green-50 rounded-lg p-4 text-center">
+                <p class="text-sm text-green-600">Receitas</p>
+                <p class="text-xl font-bold text-green-700">R$ {{ dados.total_receitas|floatformat:2 }}</p>
+            </div>
+            <div class="bg-red-50 rounded-lg p-4 text-center">
+                <p class="text-sm text-red-600">Despesas</p>
+                <p class="text-xl font-bold text-red-700">R$ {{ dados.total_despesas|floatformat:2 }}</p>
+            </div>
+            <div class="{% if dados.lucro >= 0 %}bg-blue-50{% else %}bg-orange-50{% endif %} rounded-lg p-4 text-center">
+                <p class="text-sm {% if dados.lucro >= 0 %}text-blue-600{% else %}text-orange-600{% endif %}">Lucro</p>
+                <p class="text-xl font-bold {% if dados.lucro >= 0 %}text-blue-700{% else %}text-orange-700{% endif %}">
+                    R$ {{ dados.lucro|floatformat:2 }}
+                </p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg p-4 text-center">
+                <p class="text-sm text-yellow-600">A Receber</p>
+                <p class="text-xl font-bold text-yellow-700">R$ {{ dados.total_a_receber|floatformat:2 }}</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+                <p class="text-sm text-purple-600">Margem</p>
+                <p class="text-xl font-bold text-purple-700">{{ dados.margem|floatformat:1 }}%</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalhamento -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Receitas por categoria -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-4">RECEITAS POR CATEGORIA</h3>
+        {% for c in dados.receitas_categoria %}
+        <div class="flex items-center justify-between py-2 border-b last:border-0">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background:{{ c.categoria__cor|default:'#6b7280' }}"></span>
+                <span class="text-sm">{{ c.categoria__nome|default:"Sem categoria" }}</span>
+            </div>
+            <span class="text-sm font-semibold text-green-600">R$ {{ c.total|floatformat:2 }}</span>
+        </div>
+        {% empty %}
+        <p class="text-sm text-gray-400">Nenhuma receita registrada</p>
+        {% endfor %}
+    </div>
+    <!-- Despesas por categoria -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-semibold text-gray-500 mb-4">DESPESAS POR CATEGORIA</h3>
+        {% for c in dados.despesas_categoria %}
+        <div class="flex items-center justify-between py-2 border-b last:border-0">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" style="background:{{ c.categoria__cor|default:'#6b7280' }}"></span>
+                <span class="text-sm">{{ c.categoria__nome|default:"Sem categoria" }}</span>
+            </div>
+            <span class="text-sm font-semibold text-red-600">R$ {{ c.total|floatformat:2 }}</span>
+        </div>
+        {% empty %}
+        <p class="text-sm text-gray-400">Nenhuma despesa registrada</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Ultimos lancamentos -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-sm font-semibold text-gray-500 mb-4">ULTIMOS LANCAMENTOS DO PROJETO</h3>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="text-left text-gray-400 border-b">
+                <tr>
+                    <th class="py-2">Data</th>
+                    <th>Tipo</th>
+                    <th>Categoria</th>
+                    <th>Descricao</th>
+                    <th class="text-right">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in dados.lancamentos %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ l.data|date:"d/m/Y" }}</td>
+                    <td>
+                        <span class="{% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %} font-semibold">
+                            {% if l.tipo == 'entrada' %}Entrada{% else %}Saida{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if l.categoria %}
+                        <span class="px-2 py-0.5 rounded text-xs" style="background:{{ l.categoria.cor }}20; color:{{ l.categoria.cor }}">{{ l.categoria.nome }}</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ l.descricao }}</td>
+                    <td class="text-right font-semibold {% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %}">
+                        R$ {{ l.valor|floatformat:2 }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="py-4 text-center text-gray-400">Nenhum lancamento</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Ranking de Projetos -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h3 class="text-sm font-semibold text-gray-500 mb-4">RANKING DE PROJETOS (Top 10)</h3>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="text-left text-gray-400 border-b">
+                <tr>
+                    <th class="py-2">#</th>
+                    <th>Projeto</th>
+                    <th>Status</th>
+                    <th class="text-right">Receitas</th>
+                    <th class="text-right">Despesas</th>
+                    <th class="text-right">Lucro</th>
+                    <th class="text-right">Margem</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in resumo_projetos %}
+                <tr class="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
+                    onclick="location.href='?empresa={{ empresa.id }}&projeto={{ r.projeto.id }}'">
+                    <td class="py-3 text-gray-400">{{ forloop.counter }}</td>
+                    <td class="font-medium text-gray-800">{{ r.projeto.titulo }}</td>
+                    <td>
+                        <span class="px-2 py-0.5 rounded text-xs
+                            {% if r.projeto.status == 'concluido' %}bg-green-100 text-green-700
+                            {% elif r.projeto.status == 'em_andamento' %}bg-blue-100 text-blue-700
+                            {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {{ r.projeto.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="text-right text-green-600">R$ {{ r.receita|floatformat:2 }}</td>
+                    <td class="text-right text-red-600">R$ {{ r.despesa|floatformat:2 }}</td>
+                    <td class="text-right font-semibold {% if r.lucro >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
+                        R$ {{ r.lucro|floatformat:2 }}
+                    </td>
+                    <td class="text-right {% if r.margem >= 20 %}text-green-600{% elif r.margem >= 0 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                        {{ r.margem|floatformat:1 }}%
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="py-4 text-center text-gray-400">Nenhum projeto encontrado</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

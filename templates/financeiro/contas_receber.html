@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block title %}Contas a Receber - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Contas a Receber</h1>
+    <div class="flex items-center gap-3">
+        <form method="get" class="flex items-center gap-2">
+            <select name="empresa" onchange="this.form.submit()" class="px-3 py-2 border rounded-lg text-sm">
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa.id == e.id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <a href="{% url 'dashboard_financeiro' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">Voltar</a>
+    </div>
+</div>
+
+{% if empresa %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Form nova conta -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Nova Conta a Receber</h2>
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="empresa" value="{{ empresa.id }}">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Descricao</label>
+                <input type="text" name="descricao" required placeholder="Ex: Mensalidade Cliente X" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                <input type="text" name="valor" required placeholder="1.500,00" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                <select name="cliente" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Sem cliente especifico</option>
+                    {% for c in clientes %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Projeto</label>
+                <select name="projeto" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Nenhum</option>
+                    {% for p in projetos %}
+                    <option value="{{ p.id }}">{{ p.titulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Categoria (entrada)</label>
+                <select name="categoria" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Sem categoria</option>
+                    {% for c in categorias %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Conta para Recebimento</label>
+                <select name="conta_bancaria" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="">Nenhuma</option>
+                    {% for cb in contas_bancarias %}
+                    <option value="{{ cb.id }}">{{ cb.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Parcelamento -->
+            <div class="border rounded-lg p-3 bg-gray-50">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" name="parcelado" id="parcelado" onchange="toggleParcelamento()" class="mr-2 h-4 w-4 text-indigo-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">Recebimento parcelado</span>
+                </label>
+                <div id="div_parcelas" class="hidden mt-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Numero de Parcelas</label>
+                    <input type="number" name="total_parcelas" id="total_parcelas" min="2" max="48" value="2" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <p class="text-xs text-gray-500 mt-1">O valor informado acima e o TOTAL. Sera dividido pelas parcelas.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data do Vencimento</label>
+                    <input type="date" name="data_vencimento" id="data_vencimento" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+                <div id="div_recorrencia">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Recorrencia</label>
+                    <select name="recorrencia" id="recorrencia" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        {% for val, label in recorrencias %}
+                        {% if val != 'parcelada' %}
+                        <option value="{{ val }}" {% if val == 'mensal' %}selected{% endif %}>{{ label }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Notificacoes -->
+            <div class="border rounded-lg p-3 bg-blue-50">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" name="notificar_cliente" id="notificar_cliente" class="mr-2 h-4 w-4 text-blue-600 rounded">
+                    <span class="text-sm font-medium text-gray-700">Notificar cliente antes do vencimento</span>
+                </label>
+                <div class="mt-2">
+                    <label class="block text-xs text-gray-600 mb-1">Dias de antecedencia</label>
+                    <input type="number" name="dias_antecedencia" value="3" min="1" max="30" class="w-20 px-2 py-1 border rounded text-sm">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Observacao</label>
+                <textarea name="observacao" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Opcional..."></textarea>
+            </div>
+            <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 text-sm font-semibold">
+                Cadastrar Conta a Receber
+            </button>
+        </form>
+    </div>
+
+    <!-- Contas recorrentes ativas + itens do mes -->
+    <div class="lg:col-span-2 space-y-6">
+
+        <!-- Resumo do mes -->
+        <div class="grid grid-cols-4 gap-4">
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <p class="text-sm text-gray-500">Total Mes</p>
+                <p class="text-xl font-bold text-gray-800">R$ {{ total_mes|floatformat:2 }}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <p class="text-sm text-gray-500">Recebido</p>
+                <p class="text-xl font-bold text-green-600">R$ {{ total_recebido|floatformat:2 }}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <p class="text-sm text-gray-500">Pendente</p>
+                <p class="text-xl font-bold text-yellow-600">R$ {{ total_pendente|floatformat:2 }}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <p class="text-sm text-gray-500">Atrasado</p>
+                <p class="text-xl font-bold text-red-600">R$ {{ total_atrasado|floatformat:2 }}</p>
+            </div>
+        </div>
+
+        <!-- Itens do mes -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold text-gray-700">Recebimentos do Mes ({{ hoje|date:"m/Y" }})</h2>
+            </div>
+            <div class="divide-y">
+                {% for item in itens_mes %}
+                <div class="p-4 flex items-center justify-between {% if item.recebido %}bg-green-50{% elif item.esta_atrasado %}bg-red-50{% endif %}">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            {% if item.recebido %}
+                            <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded font-bold">RECEBIDO</span>
+                            {% elif item.status == 'cancelado' %}
+                            <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded font-bold">CANCELADO</span>
+                            {% elif item.esta_atrasado %}
+                            <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded font-bold">ATRASADO</span>
+                            {% elif item.data_vencimento == hoje %}
+                            <span class="px-2 py-0.5 text-xs bg-orange-100 text-orange-800 rounded font-bold">HOJE</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded">PENDENTE</span>
+                            {% endif %}
+                            {% if item.parcela_numero %}
+                            <span class="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-800 rounded">{{ item.parcela_numero }}/{{ item.conta_receber.total_parcelas }}</span>
+                            {% endif %}
+                            <span class="font-semibold text-gray-800">{{ item.conta_receber.descricao }}</span>
+                        </div>
+                        <div class="flex items-center space-x-4 text-xs text-gray-500 mt-1">
+                            {% if item.conta_receber.cliente %}
+                            <span class="text-blue-600">{{ item.conta_receber.cliente.nome }}</span>
+                            {% endif %}
+                            <span>Venc.: {{ item.data_vencimento|date:"d/m/Y" }}</span>
+                            {% if item.esta_atrasado %}
+                            <span class="text-red-600 font-medium">{{ item.dias_atraso }} dias em atraso</span>
+                            {% endif %}
+                            {% if item.recebido_em %}
+                            <span class="text-green-600">Recebido em: {{ item.recebido_em|date:"d/m/Y H:i" }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="font-bold {% if item.recebido %}text-green-600{% elif item.esta_atrasado %}text-red-600{% else %}text-gray-800{% endif %}">
+                            R$ {{ item.valor|floatformat:2 }}
+                        </span>
+                        {% if not item.recebido and item.status != 'cancelado' %}
+                        <form action="{% url 'receber_conta' item.id %}" method="post" class="flex items-center gap-2">
+                            {% csrf_token %}
+                            <input type="text" name="valor_recebido" placeholder="Valor" class="w-24 px-2 py-1 border rounded text-sm" value="{{ item.valor }}">
+                            <button type="submit" class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                                    onclick="return confirm('Confirmar recebimento?')">
+                                Receber
+                            </button>
+                        </form>
+                        <form action="{% url 'cancelar_conta_receber' item.id %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200"
+                                    onclick="return confirm('Cancelar esta conta a receber?')">
+                                Cancelar
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-gray-500">
+                    Nenhum recebimento previsto para este mes. Cadastre uma conta a receber.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Lista de contas recorrentes -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b">
+                <h2 class="text-lg font-semibold text-gray-700">Contas a Receber Ativas</h2>
+            </div>
+            <div class="divide-y">
+                {% for conta in contas %}
+                <div class="p-4 flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-semibold text-gray-800">{{ conta.descricao }}</h3>
+                            {% if conta.cliente %}
+                            <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{{ conta.cliente.nome }}</span>
+                            {% endif %}
+                            {% if conta.projeto %}
+                            <span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">{{ conta.projeto.titulo }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center flex-wrap gap-2 text-xs text-gray-500 mt-1">
+                            {% if conta.parcelado and conta.total_parcelas > 1 %}
+                            <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-medium">{{ conta.total_parcelas }}x R$ {{ conta.valor|floatformat:2 }}</span>
+                            <span class="text-gray-400">(Total: R$ {{ conta.valor_total|floatformat:2 }})</span>
+                            {% else %}
+                            <span>R$ {{ conta.valor|floatformat:2 }}</span>
+                            {% endif %}
+                            <span>{{ conta.get_recorrencia_display }}</span>
+                            <span>Vence dia {{ conta.dia_vencimento }}</span>
+                            {% if conta.notificar_cliente %}
+                            <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Notifica {{ conta.dias_antecedencia }}d antes</span>
+                            {% endif %}
+                            {% if conta.categoria %}<span class="px-1.5 py-0.5 rounded" style="background:{{ conta.categoria.cor }}20; color:{{ conta.categoria.cor }}">{{ conta.categoria.nome }}</span>{% endif %}
+                        </div>
+                        {% if conta.observacao %}
+                        <p class="text-xs text-gray-400 mt-1">{{ conta.observacao }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'detalhe_conta_receber' conta.id %}" class="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200">
+                            Ver Parcelas
+                        </a>
+                        <form action="{% url 'contas_receber' %}?empresa={{ empresa.id }}" method="post"
+                              onsubmit="return confirm('Desativar conta {{ conta.descricao }}?')">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="excluir">
+                            <input type="hidden" name="conta_id" value="{{ conta.id }}">
+                            <button type="submit" class="px-3 py-1 bg-red-100 text-red-700 text-sm rounded hover:bg-red-200">
+                                Desativar
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-8 text-center text-gray-500">
+                    Nenhuma conta a receber cadastrada.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function toggleParcelamento() {
+    const checkbox = document.getElementById('parcelado');
+    const divParcelas = document.getElementById('div_parcelas');
+    const divRecorrencia = document.getElementById('div_recorrencia');
+
+    if (checkbox && divParcelas) {
+        if (checkbox.checked) {
+            divParcelas.classList.remove('hidden');
+            divRecorrencia.classList.add('hidden');
+        } else {
+            divParcelas.classList.add('hidden');
+            divRecorrencia.classList.remove('hidden');
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    toggleParcelamento();
+});
+</script>
+{% endblock %}

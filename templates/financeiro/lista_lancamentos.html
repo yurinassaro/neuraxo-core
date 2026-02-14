@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+
+{% block title %}Lançamentos - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold text-gray-800">Lançamentos</h1>
+    <a href="{% url 'lancar' %}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm">+ Lançar</a>
+</div>
+
+<!-- Filtros -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" class="flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Empresa</label>
+            <select name="empresa" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="">Todas</option>
+                {% for e in empresas %}
+                <option value="{{ e.id }}" {% if empresa_id and e.id|stringformat:"s" == empresa_id %}selected{% endif %}>{{ e.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Mês</label>
+            <select name="mes" class="px-3 py-2 border rounded-lg text-sm">
+                {% for m in "123456789" %}{% if forloop.counter <= 12 %}
+                <option value="{{ forloop.counter }}" {% if forloop.counter == mes %}selected{% endif %}>{{ forloop.counter|stringformat:"02d" }}</option>
+                {% endif %}{% endfor %}
+                {% if mes > 9 %}
+                <option value="10" {% if mes == 10 %}selected{% endif %}>10</option>
+                <option value="11" {% if mes == 11 %}selected{% endif %}>11</option>
+                <option value="12" {% if mes == 12 %}selected{% endif %}>12</option>
+                {% else %}
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                {% endif %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Ano</label>
+            <input type="number" name="ano" value="{{ ano }}" class="px-3 py-2 border rounded-lg text-sm w-24">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-500 mb-1">Tipo</label>
+            <select name="tipo" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="">Todos</option>
+                <option value="entrada" {% if tipo == 'entrada' %}selected{% endif %}>Entrada</option>
+                <option value="saida" {% if tipo == 'saida' %}selected{% endif %}>Saída</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-2">
+            <input type="checkbox" name="sem_categoria" value="1" id="sem_cat" {% if sem_categoria %}checked{% endif %} class="rounded">
+            <label for="sem_cat" class="text-xs text-gray-500">Sem categoria</label>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800">Filtrar</button>
+    </form>
+</div>
+
+<!-- Resumo -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-xs text-gray-400">Entradas</p>
+        <p class="text-xl font-bold text-green-600">R$ {{ total_entradas|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-xs text-gray-400">Saídas</p>
+        <p class="text-xl font-bold text-red-600">R$ {{ total_saidas|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-xs text-gray-400">Saldo</p>
+        <p class="text-xl font-bold {% if saldo >= 0 %}text-green-600{% else %}text-red-600{% endif %}">R$ {{ saldo|floatformat:2 }}</p>
+    </div>
+</div>
+
+<!-- Tabela com checkboxes -->
+<form method="post" action="{% url 'categorizar_lote' %}" id="form-lote">
+{% csrf_token %}
+<div class="bg-white rounded-lg shadow overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-500 border-b">
+            <tr>
+                <th class="px-3 py-3"><input type="checkbox" id="select-all" class="rounded"></th>
+                <th class="py-3">Data</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Descrição</th>
+                <th class="text-right pr-4">Valor</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lancamentos %}
+            <tr class="border-b hover:bg-gray-50 lancamento-row" data-id="{{ l.id }}">
+                <td class="px-3 py-2">
+                    <input type="checkbox" name="lancamento_ids" value="{{ l.id }}" class="rounded check-item">
+                </td>
+                <td class="py-2">{{ l.data|date:"d/m" }}</td>
+                <td>
+                    <span class="{% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %} font-bold">
+                        {% if l.tipo == 'entrada' %}+{% else %}-{% endif %}
+                    </span>
+                </td>
+                <td>
+                    {% if l.categoria %}
+                    <span class="px-2 py-0.5 rounded text-xs text-white" style="background:{{ l.categoria.cor }}">{{ l.categoria.nome }}</span>
+                    {% else %}<span class="text-gray-300">-</span>{% endif %}
+                </td>
+                <td class="max-w-xs truncate">{{ l.descricao }}</td>
+                <td class="text-right pr-4 font-semibold {% if l.tipo == 'entrada' %}text-green-600{% else %}text-red-600{% endif %}">
+                    R$ {{ l.valor|floatformat:2 }}
+                </td>
+                <td class="px-2 flex items-center gap-2">
+                    <a href="{% url 'prestacao_contas' l.id %}" class="text-indigo-500 hover:text-indigo-700 text-xs" title="Prestação de contas">$</a>
+                    <form method="post" action="{% url 'excluir_lancamento' l.id %}" onsubmit="return confirm('Excluir?')">
+                        {% csrf_token %}
+                        <button class="text-red-400 hover:text-red-600 text-xs">x</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Nenhum lançamento encontrado</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Barra de ação fixa no rodapé -->
+<div id="barra-acao" class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow-lg transform translate-y-full transition-transform duration-200 z-50">
+    <div class="flex items-center gap-3">
+        <span id="qtd-selecionados" class="font-bold text-lg">0</span>
+        <span class="text-sm text-gray-300">selecionados</span>
+        <span id="valor-selecionados" class="text-sm text-gray-400 ml-2"></span>
+    </div>
+    <div class="flex items-center gap-3">
+        <select name="categoria_id" class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white">
+            <option value="">Selecione categoria...</option>
+            <optgroup label="Entradas">
+                {% for c in categorias %}
+                {% if c.tipo == 'entrada' %}
+                <option value="{{ c.id }}">{{ c.nome }}</option>
+                {% endif %}
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Saídas">
+                {% for c in categorias %}
+                {% if c.tipo == 'saida' %}
+                <option value="{{ c.id }}">{{ c.nome }}</option>
+                {% endif %}
+                {% endfor %}
+            </optgroup>
+        </select>
+        <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 text-sm font-semibold">
+            Categorizar
+        </button>
+    </div>
+</div>
+</form>
+
+<script>
+(function() {
+    const selectAll = document.getElementById('select-all');
+    const checkItems = document.querySelectorAll('.check-item');
+    const barra = document.getElementById('barra-acao');
+    const qtdEl = document.getElementById('qtd-selecionados');
+    const valorEl = document.getElementById('valor-selecionados');
+
+    function atualizarBarra() {
+        const checked = document.querySelectorAll('.check-item:checked');
+        const qtd = checked.length;
+        qtdEl.textContent = qtd;
+
+        // Calcular valor total selecionado
+        let total = 0;
+        checked.forEach(cb => {
+            const row = cb.closest('tr');
+            const valorCell = row.querySelector('td:nth-child(6)');
+            const valorText = valorCell.textContent.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+            total += parseFloat(valorText) || 0;
+        });
+        valorEl.textContent = qtd > 0 ? '(R$ ' + total.toFixed(2).replace('.', ',') + ')' : '';
+
+        if (qtd > 0) {
+            barra.classList.remove('translate-y-full');
+        } else {
+            barra.classList.add('translate-y-full');
+        }
+    }
+
+    selectAll.addEventListener('change', function() {
+        checkItems.forEach(cb => cb.checked = selectAll.checked);
+        atualizarBarra();
+    });
+
+    checkItems.forEach(cb => {
+        cb.addEventListener('change', atualizarBarra);
+    });
+})();
+</script>
+
+<style>
+    /* Espaço extra no final para a barra não cobrir conteúdo */
+    body { padding-bottom: 70px; }
+</style>
+{% endblock %}

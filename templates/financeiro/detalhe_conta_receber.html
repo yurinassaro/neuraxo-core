@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ conta.descricao }} - Contas a Receber{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <a href="{% url 'contas_receber' %}?empresa={{ conta.empresa_id }}" class="text-blue-600 hover:text-blue-800 text-sm">&larr; Voltar para Contas a Receber</a>
+        <h1 class="text-2xl font-bold text-gray-800 mt-2">{{ conta.descricao }}</h1>
+        <div class="flex items-center gap-2 mt-1">
+            {% if conta.cliente %}
+            <span class="text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{{ conta.cliente.nome }}</span>
+            {% endif %}
+            {% if conta.projeto %}
+            <span class="text-sm text-purple-600 bg-purple-50 px-2 py-0.5 rounded">{{ conta.projeto.titulo }}</span>
+            {% endif %}
+            <span class="text-sm text-gray-500">{{ conta.get_recorrencia_display }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Resumo -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-sm text-gray-500">Valor por Parcela</p>
+        <p class="text-xl font-bold text-gray-800">R$ {{ conta.valor|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-sm text-gray-500">Total Recebido</p>
+        <p class="text-xl font-bold text-green-600">R$ {{ total_recebido|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-sm text-gray-500">Total Pendente</p>
+        <p class="text-xl font-bold text-yellow-600">R$ {{ total_pendente|floatformat:2 }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+        <p class="text-sm text-gray-500">Total em Atraso</p>
+        <p class="text-xl font-bold text-red-600">R$ {{ total_atrasado|floatformat:2 }}</p>
+    </div>
+</div>
+
+<!-- Lista de parcelas/itens -->
+<div class="bg-white rounded-lg shadow">
+    <div class="p-4 border-b">
+        <h2 class="text-lg font-semibold text-gray-700">
+            {% if conta.parcelado %}Parcelas{% else %}Recebimentos{% endif %}
+            ({{ itens.count }} itens)
+        </h2>
+    </div>
+    <div class="divide-y">
+        {% for item in itens %}
+        <div class="p-4 flex items-center justify-between {% if item.recebido %}bg-green-50{% elif item.status == 'cancelado' %}bg-gray-50{% elif item.esta_atrasado %}bg-red-50{% endif %}">
+            <div class="flex-1">
+                <div class="flex items-center space-x-2">
+                    {% if item.recebido %}
+                    <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded font-bold">RECEBIDO</span>
+                    {% elif item.status == 'cancelado' %}
+                    <span class="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded font-bold">CANCELADO</span>
+                    {% elif item.esta_atrasado %}
+                    <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded font-bold">ATRASADO</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded">PENDENTE</span>
+                    {% endif %}
+                    {% if item.parcela_numero %}
+                    <span class="font-semibold text-gray-800">Parcela {{ item.parcela_numero }}/{{ conta.total_parcelas }}</span>
+                    {% else %}
+                    <span class="font-semibold text-gray-800">{{ item.mes|stringformat:"02d" }}/{{ item.ano }}</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center space-x-4 text-xs text-gray-500 mt-1">
+                    <span>Vencimento: {{ item.data_vencimento|date:"d/m/Y" }}</span>
+                    {% if item.esta_atrasado %}
+                    <span class="text-red-600 font-medium">{{ item.dias_atraso }} dias em atraso</span>
+                    {% endif %}
+                    {% if item.recebido_em %}
+                    <span class="text-green-600">Recebido em: {{ item.recebido_em|date:"d/m/Y H:i" }}</span>
+                    {% if item.valor_recebido != item.valor %}
+                    <span class="text-orange-600">(Valor original: R$ {{ item.valor|floatformat:2 }})</span>
+                    {% endif %}
+                    {% endif %}
+                    {% if item.observacao %}
+                    <span class="text-gray-400">{{ item.observacao }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="font-bold text-lg {% if item.recebido %}text-green-600{% elif item.esta_atrasado %}text-red-600{% else %}text-gray-800{% endif %}">
+                    R$ {% if item.valor_recebido %}{{ item.valor_recebido|floatformat:2 }}{% else %}{{ item.valor|floatformat:2 }}{% endif %}
+                </span>
+                {% if not item.recebido and item.status != 'cancelado' %}
+                <form action="{% url 'receber_conta' item.id %}" method="post" class="flex items-center gap-2">
+                    {% csrf_token %}
+                    <input type="text" name="valor_recebido" placeholder="Valor" class="w-24 px-2 py-1 border rounded text-sm" value="{{ item.valor }}">
+                    <button type="submit" class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                            onclick="return confirm('Confirmar recebimento?')">
+                        Receber
+                    </button>
+                </form>
+                <form action="{% url 'cancelar_conta_receber' item.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200"
+                            onclick="return confirm('Cancelar este recebimento?')">
+                        Cancelar
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="p-8 text-center text-gray-500">
+            Nenhum item encontrado.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if conta.observacao %}
+<div class="mt-6 bg-white rounded-lg shadow p-4">
+    <h3 class="text-sm font-medium text-gray-700 mb-2">Observacoes</h3>
+    <p class="text-gray-600">{{ conta.observacao }}</p>
+</div>
+{% endif %}
+{% endblock %}
