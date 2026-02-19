@@ -174,19 +174,52 @@
 <div id="content-concluidos" class="tab-content hidden">
     <!-- Filtro de periodo -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
-        <form method="get" class="flex flex-wrap gap-4 items-center">
+        <form method="get">
             <input type="hidden" name="tab" value="concluidos">
-            <span class="text-sm text-gray-600 dark:text-gray-400">Periodo:</span>
-            <div class="flex space-x-2">
-                <a href="?dias=7&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 7 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
-                    7 dias
-                </a>
-                <a href="?dias=30&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 30 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
-                    30 dias
-                </a>
-                <a href="?dias=0&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 0 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
-                    Todos
-                </a>
+
+            <!-- Layout Mobile -->
+            <div class="space-y-4 md:space-y-0 md:flex md:flex-wrap md:items-center md:gap-4">
+                <!-- Atalhos rapidos -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">Periodo:</span>
+                    <div class="flex space-x-2">
+                        <a href="?dias=7&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 7 and not data_inicio %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                            7 dias
+                        </a>
+                        <a href="?dias=30&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 30 and not data_inicio %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                            30 dias
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Separador (oculto no mobile) -->
+                <span class="hidden md:inline text-gray-400 dark:text-gray-500">|</span>
+
+                <!-- Filtro por data -->
+                <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 dark:text-gray-400 w-8">De:</label>
+                        <input type="date" name="data_inicio" value="{{ data_inicio|default:'' }}"
+                            class="flex-1 px-2 py-1.5 text-sm border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 dark:text-gray-400 w-8">Ate:</label>
+                        <input type="date" name="data_fim" value="{{ data_fim|default:'' }}"
+                            class="flex-1 px-2 py-1.5 text-sm border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Botoes -->
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 sm:flex-none px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        Filtrar
+                    </button>
+                    {% if data_inicio or data_fim %}
+                    <a href="?tab=concluidos" class="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg">
+                        Limpar
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </form>
     </div>

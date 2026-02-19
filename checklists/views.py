@@ -373,6 +373,8 @@ def lista_demandas(request):
     empresa_filter = request.GET.get('empresa', '')
     status_filter = request.GET.get('status', '')
     dias_concluidos = int(request.GET.get('dias', 7))
+    data_inicio = request.GET.get('data_inicio', '')
+    data_fim = request.GET.get('data_fim', '')
 
     if pessoa.is_gestor:
         # Gestor vê todas das suas empresas
@@ -393,17 +395,22 @@ def lista_demandas(request):
     demandas = demandas.select_related('empresa', 'responsavel', 'solicitante')
 
     # Demandas concluídas (para a aba de concluídos)
-    if dias_concluidos > 0:
+    demandas_concluidas = demandas_base.filter(status='concluido')
+
+    # Filtro por datas customizadas tem prioridade
+    if data_inicio or data_fim:
+        if data_inicio:
+            demandas_concluidas = demandas_concluidas.filter(concluido_em__date__gte=data_inicio)
+        if data_fim:
+            demandas_concluidas = demandas_concluidas.filter(concluido_em__date__lte=data_fim)
+    elif dias_concluidos > 0:
+        # Filtro por dias (7, 30, etc)
         periodo = timezone.now() - timedelta(days=dias_concluidos)
-        demandas_concluidas = demandas_base.filter(
-            status='concluido',
-            concluido_em__gte=periodo
-        ).select_related('empresa', 'responsavel', 'solicitante').order_by('-concluido_em')
-    else:
-        # Todos (dias_concluidos = 0)
-        demandas_concluidas = demandas_base.filter(
-            status='concluido'
-        ).select_related('empresa', 'responsavel', 'solicitante').order_by('-concluido_em')
+        demandas_concluidas = demandas_concluidas.filter(concluido_em__gte=periodo)
+
+    demandas_concluidas = demandas_concluidas.select_related(
+        'empresa', 'responsavel', 'solicitante'
+    ).order_by('-concluido_em')
 
     # Agrupar por empresa
     demandas_por_empresa = {}
@@ -427,6 +434,8 @@ def lista_demandas(request):
         'demandas_concluidas': demandas_concluidas,
         'total_concluidas': demandas_concluidas.count(),
         'dias_concluidos': dias_concluidos,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
     }
     return render(request, 'checklists/lista_demandas.html', context)
 
