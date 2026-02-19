@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Pendências - NeuraxoCore{% endblock %}
+{% block title %}Pendencias - NeuraxoCore{% endblock %}
 
 {% block content %}
 <div class="mb-6 flex justify-between items-center">
     <div>
-        <h1 class="text-2xl font-bold text-gray-800">Pendências</h1>
-        <p class="text-gray-600">{{ total_demandas }} demanda(s)</p>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Pendencias</h1>
+        <p class="text-gray-600 dark:text-gray-400">{{ total_demandas }} pendente(s) | {{ total_concluidas }} concluida(s)</p>
     </div>
     {% if pessoa.is_gestor %}
     <a href="{% url 'criar_demanda' %}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
@@ -18,134 +18,279 @@
     {% endif %}
 </div>
 
-<!-- Filtros -->
-<div class="bg-white rounded-lg shadow p-4 mb-6">
-    <form method="get" class="flex flex-wrap gap-4 items-end">
-        <div>
-            <label class="block text-sm text-gray-600 mb-1">Empresa</label>
-            <select name="empresa" class="px-3 py-2 border rounded-lg">
-                <option value="">Todas</option>
-                {% for emp in empresas %}
-                <option value="{{ emp.id }}" {% if empresa_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.nome }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label class="block text-sm text-gray-600 mb-1">Status</label>
-            <select name="status" class="px-3 py-2 border rounded-lg">
-                <option value="">Todos</option>
-                {% for value, label in status_choices %}
-                <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-            Filtrar
+<!-- Abas -->
+<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+    <nav class="flex space-x-4" aria-label="Tabs">
+        <button type="button" id="tab-pendencias" onclick="showTab('pendencias')"
+            class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400">
+            Pendencias
+            <span class="ml-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-xs px-2 py-0.5 rounded-full">{{ total_demandas }}</span>
         </button>
-        {% if empresa_filter or status_filter %}
-        <a href="{% url 'lista_demandas' %}" class="px-4 py-2 text-gray-600 hover:underline">Limpar</a>
-        {% endif %}
-    </form>
+        <button type="button" id="tab-concluidos" onclick="showTab('concluidos')"
+            class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+            Concluidos
+            <span class="ml-1 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 text-xs px-2 py-0.5 rounded-full">{{ total_concluidas }}</span>
+        </button>
+    </nav>
 </div>
 
-<!-- Demandas por Empresa -->
-{% for empresa_nome, dados in demandas_por_empresa.items %}
-<div class="mb-8">
-    <div class="flex items-center space-x-2 mb-4">
-        <div class="w-4 h-4 rounded" style="background-color: {{ dados.empresa.cor }};"></div>
-        <h2 class="text-xl font-semibold text-gray-800">{{ empresa_nome }}</h2>
-        <span class="text-sm text-gray-500">({{ dados.demandas|length }})</span>
+<!-- Aba Pendencias -->
+<div id="content-pendencias" class="tab-content">
+    <!-- Filtros -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Empresa</label>
+                <select name="empresa" class="px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Todas</option>
+                    {% for emp in empresas %}
+                    <option value="{{ emp.id }}" {% if empresa_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Status</label>
+                <select name="status" class="px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <option value="">Todos</option>
+                    {% for value, label in status_choices %}
+                    {% if value != 'concluido' %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                Filtrar
+            </button>
+            {% if empresa_filter or status_filter %}
+            <a href="{% url 'lista_demandas' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:underline">Limpar</a>
+            {% endif %}
+        </form>
     </div>
 
-    <div class="space-y-3">
-        {% for demanda in dados.demandas %}
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 {% if demanda.get_status_prazo == 'atrasado' %}border-red-500{% elif demanda.get_status_prazo == 'urgente' %}border-orange-500{% elif demanda.get_status_prazo == 'proximo' %}border-yellow-500{% elif demanda.status == 'concluido' %}border-green-500{% else %}border-gray-300{% endif %}">
-            <div class="flex justify-between items-start">
-                <div class="flex-1">
-                    <div class="flex items-center space-x-2 mb-2">
-                        <!-- Status -->
-                        {% if demanda.status == 'concluido' %}
-                        <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">Concluído</span>
-                        {% elif demanda.status == 'dependente' %}
-                        <span class="px-2 py-0.5 text-xs bg-orange-100 text-orange-800 rounded">Aguardando</span>
-                        {% elif demanda.status == 'em_andamento' %}
-                        <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Em Andamento</span>
-                        {% else %}
-                        <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-800 rounded">Pendente</span>
-                        {% endif %}
+    <!-- Demandas por Empresa -->
+    {% for empresa_nome, dados in demandas_por_empresa.items %}
+    <div class="mb-8">
+        <div class="flex items-center space-x-2 mb-4">
+            <div class="w-4 h-4 rounded" style="background-color: {{ dados.empresa.cor }};"></div>
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-white">{{ empresa_nome }}</h2>
+            <span class="text-sm text-gray-500 dark:text-gray-400">({{ dados.demandas|length }})</span>
+        </div>
 
-                        <!-- Prioridade -->
-                        <span class="px-2 py-0.5 text-xs rounded prioridade-{{ demanda.prioridade }}">
-                            {{ demanda.get_prioridade_display }}
-                        </span>
+        <div class="space-y-3">
+            {% for demanda in dados.demandas %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 {% if demanda.get_status_prazo == 'atrasado' %}border-red-500{% elif demanda.get_status_prazo == 'urgente' %}border-orange-500{% elif demanda.get_status_prazo == 'proximo' %}border-yellow-500{% elif demanda.status == 'concluido' %}border-green-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <!-- Status -->
+                            {% if demanda.status == 'concluido' %}
+                            <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">Concluido</span>
+                            {% elif demanda.status == 'dependente' %}
+                            <span class="px-2 py-0.5 text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 rounded">Aguardando</span>
+                            {% elif demanda.status == 'em_andamento' %}
+                            <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">Em Andamento</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded">Pendente</span>
+                            {% endif %}
 
-                        <!-- Prazo -->
-                        {% if demanda.get_status_prazo == 'atrasado' %}
-                        <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded">ATRASADO</span>
-                        {% endif %}
-                    </div>
+                            <!-- Prioridade -->
+                            <span class="px-2 py-0.5 text-xs rounded prioridade-{{ demanda.prioridade }}">
+                                {{ demanda.get_prioridade_display }}
+                            </span>
 
-                    <h3 class="font-semibold text-lg {% if demanda.status == 'concluido' %}line-through text-gray-400{% endif %}">
-                        <a href="{% url 'detalhe_demanda' demanda.id %}" class="hover:text-indigo-600">
-                            {{ demanda.titulo }}
-                        </a>
-                    </h3>
-
-                    {% if demanda.descricao %}
-                    <p class="text-gray-600 text-sm mt-1">{{ demanda.descricao|truncatewords:20 }}</p>
-                    {% endif %}
-
-                    <div class="flex items-center space-x-4 text-xs text-gray-500 mt-2">
-                        <span>Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</span>
-                        <span>Responsável: {{ demanda.responsavel.nome }}</span>
-                        {% if demanda.solicitante %}
-                        <span>Solicitado por: {{ demanda.solicitante.nome }}</span>
-                        {% endif %}
-                        {% if demanda.get_tempo_total > 0 %}
-                        <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">{{ demanda.get_tempo_formatado }}</span>
-                        {% endif %}
-                        {% if demanda.dependente_de %}
-                        <span class="text-orange-600">Aguardando: {{ demanda.dependente_de.nome }}</span>
-                        {% endif %}
-                    </div>
-
-                    <!-- Progresso -->
-                    {% if demanda.subtarefas_demanda.count > 0 %}
-                    <div class="mt-2 flex items-center space-x-2">
-                        <div class="flex-1 bg-gray-200 rounded-full h-1.5 max-w-xs">
-                            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ demanda.get_progresso }}%"></div>
+                            <!-- Prazo -->
+                            {% if demanda.get_status_prazo == 'atrasado' %}
+                            <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">ATRASADO</span>
+                            {% endif %}
                         </div>
-                        <span class="text-xs text-gray-500">{{ demanda.get_progresso }}%</span>
-                    </div>
-                    {% endif %}
-                </div>
 
-                <div class="flex flex-col space-y-1 ml-4">
-                    <a href="{% url 'detalhe_demanda' demanda.id %}"
-                       class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200 text-center">
-                        Abrir
-                    </a>
-                    {% if pessoa.is_gestor or user.is_staff %}
-                    <form action="{% url 'excluir_demanda' demanda.id %}" method="post"
-                          onsubmit="return confirm('Excluir permanentemente a demanda &quot;{{ demanda.titulo|escapejs }}&quot;?');">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-                            Excluir
-                        </button>
-                    </form>
-                    {% endif %}
+                        <h3 class="font-semibold text-lg text-gray-900 dark:text-white {% if demanda.status == 'concluido' %}line-through text-gray-400 dark:text-gray-500{% endif %}">
+                            <a href="{% url 'detalhe_demanda' demanda.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">
+                                {{ demanda.titulo }}
+                            </a>
+                        </h3>
+
+                        {% if demanda.descricao %}
+                        <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">{{ demanda.descricao|truncatewords:20 }}</p>
+                        {% endif %}
+
+                        <div class="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            <span>Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</span>
+                            <span>Responsavel: {{ demanda.responsavel.nome }}</span>
+                            {% if demanda.solicitante %}
+                            <span>Solicitado por: {{ demanda.solicitante.nome }}</span>
+                            {% endif %}
+                            {% if demanda.get_tempo_total > 0 %}
+                            <span class="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{{ demanda.get_tempo_formatado }}</span>
+                            {% endif %}
+                            {% if demanda.dependente_de %}
+                            <span class="text-orange-600 dark:text-orange-400">Aguardando: {{ demanda.dependente_de.nome }}</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Progresso -->
+                        {% if demanda.subtarefas_demanda.count > 0 %}
+                        <div class="mt-2 flex items-center space-x-2">
+                            <div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 max-w-xs">
+                                <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ demanda.get_progresso }}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ demanda.get_progresso }}%</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="flex flex-col space-y-1 ml-4">
+                        <a href="{% url 'detalhe_demanda' demanda.id %}"
+                           class="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 text-center">
+                            Abrir
+                        </a>
+                        {% if pessoa.is_gestor or user.is_staff %}
+                        <form action="{% url 'excluir_demanda' demanda.id %}" method="post"
+                              onsubmit="return confirm('Excluir permanentemente a demanda &quot;{{ demanda.titulo|escapejs }}&quot;?');">
+                            {% csrf_token %}
+                            <button type="submit" class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                                Excluir
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
+    {% empty %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+        <p>Nenhuma demanda pendente encontrada.</p>
+        {% if pessoa.is_gestor %}
+        <a href="{% url 'criar_demanda' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline mt-2 inline-block">Criar nova demanda</a>
+        {% endif %}
+    </div>
+    {% endfor %}
 </div>
-{% empty %}
-<div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-    <p>Nenhuma demanda encontrada.</p>
-    {% if pessoa.is_gestor %}
-    <a href="{% url 'criar_demanda' %}" class="text-indigo-600 hover:underline mt-2 inline-block">Criar nova demanda</a>
+
+<!-- Aba Concluidos -->
+<div id="content-concluidos" class="tab-content hidden">
+    <!-- Filtro de periodo -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <form method="get" class="flex flex-wrap gap-4 items-center">
+            <input type="hidden" name="tab" value="concluidos">
+            <span class="text-sm text-gray-600 dark:text-gray-400">Periodo:</span>
+            <div class="flex space-x-2">
+                <a href="?dias=7&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 7 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                    7 dias
+                </a>
+                <a href="?dias=30&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 30 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                    30 dias
+                </a>
+                <a href="?dias=0&tab=concluidos" class="px-3 py-1.5 text-sm rounded-lg {% if dias_concluidos == 0 %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+                    Todos
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela de Concluidos -->
+    {% if demandas_concluidas %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto">
+            <table id="tabela-concluidos" class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Titulo</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Empresa</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Responsavel</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Prazo</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Concluido em</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">Acoes</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for demanda in demandas_concluidas %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-4 py-3">
+                            <a href="{% url 'detalhe_demanda' demanda.id %}" class="text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 font-medium">
+                                {{ demanda.titulo }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 rounded" style="background-color: {{ demanda.empresa.cor }};"></div>
+                                <span class="text-gray-600 dark:text-gray-400">{{ demanda.empresa.nome }}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ demanda.responsavel.nome }}</td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-400" data-order="{{ demanda.prazo|date:'Y-m-d H:i' }}">{{ demanda.prazo|date:"d/m/Y H:i" }}</td>
+                        <td class="px-4 py-3 text-green-600 dark:text-green-400" data-order="{{ demanda.concluido_em|date:'Y-m-d H:i' }}">{{ demanda.concluido_em|date:"d/m/Y H:i" }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <a href="{% url 'detalhe_demanda' demanda.id %}"
+                               class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm rounded hover:bg-indigo-200 dark:hover:bg-indigo-800">
+                                Abrir
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+        <p>Nenhuma demanda concluida no periodo selecionado.</p>
+    </div>
     {% endif %}
 </div>
-{% endfor %}
+
+<script>
+function showTab(tab) {
+    // Esconde todos os conteudos
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    // Remove estilo ativo de todas as abas
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400', 'dark:border-indigo-400');
+        el.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    });
+
+    // Mostra conteudo da aba selecionada
+    document.getElementById('content-' + tab).classList.remove('hidden');
+
+    // Ativa a aba selecionada
+    const tabBtn = document.getElementById('tab-' + tab);
+    tabBtn.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    tabBtn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400', 'dark:border-indigo-400');
+
+    // Salva no URL sem recarregar
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tab);
+    window.history.replaceState({}, '', url);
+}
+
+// Verifica se tem tab na URL ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if (tab === 'concluidos') {
+        showTab('concluidos');
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#tabela-concluidos').DataTable({
+        language: {
+            url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/pt-BR.json'
+        },
+        order: [[4, 'desc']], // Ordenar por "Concluido em" decrescente
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+        columnDefs: [
+            { orderable: false, targets: 5 } // Desabilitar ordenacao na coluna Acoes
+        ]
+    });
+});
+</script>
 {% endblock %}

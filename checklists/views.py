@@ -372,14 +372,18 @@ def lista_demandas(request):
     # Filtros
     empresa_filter = request.GET.get('empresa', '')
     status_filter = request.GET.get('status', '')
+    dias_concluidos = int(request.GET.get('dias', 7))
 
     if pessoa.is_gestor:
         # Gestor vê todas das suas empresas
         empresas = pessoa.empresas.all()
-        demandas = Demanda.objects.filter(empresa__in=empresas)
+        demandas_base = Demanda.objects.filter(empresa__in=empresas)
     else:
         # Funcionário vê apenas as dele
-        demandas = Demanda.objects.filter(responsavel=pessoa)
+        demandas_base = Demanda.objects.filter(responsavel=pessoa)
+
+    # Demandas pendentes (excluir concluídos)
+    demandas = demandas_base.exclude(status='concluido')
 
     if empresa_filter:
         demandas = demandas.filter(empresa_id=empresa_filter)
@@ -387,6 +391,19 @@ def lista_demandas(request):
         demandas = demandas.filter(status=status_filter)
 
     demandas = demandas.select_related('empresa', 'responsavel', 'solicitante')
+
+    # Demandas concluídas (para a aba de concluídos)
+    if dias_concluidos > 0:
+        periodo = timezone.now() - timedelta(days=dias_concluidos)
+        demandas_concluidas = demandas_base.filter(
+            status='concluido',
+            concluido_em__gte=periodo
+        ).select_related('empresa', 'responsavel', 'solicitante').order_by('-concluido_em')
+    else:
+        # Todos (dias_concluidos = 0)
+        demandas_concluidas = demandas_base.filter(
+            status='concluido'
+        ).select_related('empresa', 'responsavel', 'solicitante').order_by('-concluido_em')
 
     # Agrupar por empresa
     demandas_por_empresa = {}
@@ -407,6 +424,9 @@ def lista_demandas(request):
         'empresa_filter': empresa_filter,
         'status_filter': status_filter,
         'total_demandas': demandas.count(),
+        'demandas_concluidas': demandas_concluidas,
+        'total_concluidas': demandas_concluidas.count(),
+        'dias_concluidos': dias_concluidos,
     }
     return render(request, 'checklists/lista_demandas.html', context)
 

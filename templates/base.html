@@ -5,6 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}NeuraxoCore{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <style>
+        /* DataTables Dark Mode Override */
+        .dark .dataTables_wrapper .dataTables_length,
+        .dark .dataTables_wrapper .dataTables_filter,
+        .dark .dataTables_wrapper .dataTables_info,
+        .dark .dataTables_wrapper .dataTables_paginate {
+            color: #e5e7eb !important;
+        }
+        .dark .dataTables_wrapper .dataTables_length select,
+        .dark .dataTables_wrapper .dataTables_filter input {
+            background-color: #374151 !important;
+            color: #e5e7eb !important;
+            border-color: #4b5563 !important;
+        }
+        .dark table.dataTable {
+            border-color: #374151 !important;
+        }
+        .dark table.dataTable thead th,
+        .dark table.dataTable thead td {
+            background-color: #1f2937 !important;
+            color: #e5e7eb !important;
+            border-bottom-color: #374151 !important;
+        }
+        .dark table.dataTable tbody tr {
+            background-color: #111827 !important;
+        }
+        .dark table.dataTable tbody tr:nth-child(even) {
+            background-color: #1f2937 !important;
+        }
+        .dark table.dataTable tbody td {
+            color: #e5e7eb !important;
+            border-bottom-color: #374151 !important;
+        }
+        .dark table.dataTable tbody tr:hover {
+            background-color: #374151 !important;
+        }
+        .dark .dataTables_wrapper .dataTables_paginate .paginate_button {
+            color: #e5e7eb !important;
+        }
+        .dark .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: #4f46e5 !important;
+            color: white !important;
+            border-color: #4f46e5 !important;
+        }
+        .dark .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #374151 !important;
+            color: white !important;
+            border-color: #374151 !important;
+        }
+    </style>
     <script>
         // Verifica preferência salva ou do sistema
         if (localStorage.getItem('theme') === 'dark' ||
@@ -211,5 +263,10 @@
     <footer class="text-center text-gray-500 dark:text-gray-400 py-4 mt-8">
         <p>NeuraxoCore - Sistema de Checklists</p>
     </footer>
+
+    <!-- jQuery e DataTables -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>
