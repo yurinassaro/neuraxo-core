@@ -278,6 +278,7 @@ class ContaPagar(models.Model):
     dia_execucao = models.CharField(max_length=10, choices=DIA_EXECUCAO_CHOICES, default='mesmo_dia')
     dia_execucao_mensal = models.IntegerField(null=True, blank=True, help_text='Dia do mês para execução (1-31)')
 
+    valor_estimado = models.BooleanField(default=False, help_text='Valor aproximado/desconhecido no momento do cadastro')
     ativo = models.BooleanField(default=True)
     observacao = models.TextField(blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -301,6 +302,8 @@ class ContaPagarItem(models.Model):
     data_execucao = models.DateField(help_text='Dia que deve aparecer na rotina')
     pago = models.BooleanField(default=False)
     pago_em = models.DateTimeField(null=True, blank=True)
+    dispensado = models.BooleanField(default=False, help_text='Dispensado sem pagamento')
+    dispensado_em = models.DateTimeField(null=True, blank=True)
     lancamento = models.ForeignKey(Lancamento, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='conta_pagar_item')
     # Para contas parceladas

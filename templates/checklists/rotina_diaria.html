@@ -276,12 +276,15 @@
 
     <div x-show="aberto" x-collapse class="mt-3 space-y-3">
         {% for item in contas_pagar_atrasadas %}
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500" x-data="{ modalAberto: false }">
             <div class="flex justify-between items-start">
                 <div class="flex-1">
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded font-bold">ATRASADA</span>
                         <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">{{ item.conta_pagar.empresa.nome }}</span>
+                        {% if item.conta_pagar.valor_estimado %}
+                        <span class="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded font-medium">~Estimado</span>
+                        {% endif %}
                     </div>
                     <h3 class="font-semibold text-gray-800">{{ item.conta_pagar.descricao }}</h3>
                     <div class="flex items-center space-x-4 text-xs text-gray-500 mt-1">
@@ -290,13 +293,32 @@
                         <span>Exec.: {{ item.data_execucao|date:"d/m/Y" }}</span>
                     </div>
                 </div>
-                <form action="{% url 'pagar_conta' item.id %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold"
-                            onclick="return confirm('Marcar como pago e criar lançamento de R$ {{ item.valor|floatformat:2 }}?')">
-                        Pagar
-                    </button>
-                </form>
+                <button @click="modalAberto = true" class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                    Pagar
+                </button>
+            </div>
+            <!-- Modal Pagar/Dispensar -->
+            <div x-show="modalAberto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="modalAberto = false">
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4" @click.stop>
+                    <h3 class="text-lg font-bold text-gray-800 mb-1">{{ item.conta_pagar.descricao }}</h3>
+                    <p class="text-sm text-gray-500 mb-4">Venc.: {{ item.data_vencimento|date:"d/m/Y" }}{% if item.conta_pagar.valor_estimado %} <span class="text-yellow-600">(valor estimado)</span>{% endif %}</p>
+                    <form action="{% url 'pagar_conta' item.id %}" method="post" class="mb-3">
+                        {% csrf_token %}
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Valor real (R$)</label>
+                        <input type="text" name="valor_real" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
+                        <button type="submit" class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                            Pagar e criar lançamento
+                        </button>
+                    </form>
+                    <form action="{% url 'dispensar_conta' item.id %}" method="post" class="mb-3">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold"
+                                onclick="return confirm('Dispensar esta conta sem criar lançamento?')">
+                            Não precisei pagar
+                        </button>
+                    </form>
+                    <button @click="modalAberto = false" class="w-full px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancelar</button>
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -325,12 +347,15 @@
 
     <div x-show="aberto" x-collapse class="mt-3 space-y-3">
         {% for item in contas_pagar_hoje %}
-        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500" x-data="{ modalAberto: false }">
             <div class="flex justify-between items-start">
                 <div class="flex-1">
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="px-2 py-0.5 text-xs bg-orange-100 text-orange-800 rounded font-bold">PAGAR HOJE</span>
                         <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">{{ item.conta_pagar.empresa.nome }}</span>
+                        {% if item.conta_pagar.valor_estimado %}
+                        <span class="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded font-medium">~Estimado</span>
+                        {% endif %}
                     </div>
                     <h3 class="font-semibold text-gray-800">{{ item.conta_pagar.descricao }}</h3>
                     <div class="flex items-center space-x-4 text-xs text-gray-500 mt-1">
@@ -338,13 +363,32 @@
                         <span>Venc.: {{ item.data_vencimento|date:"d/m/Y" }}</span>
                     </div>
                 </div>
-                <form action="{% url 'pagar_conta' item.id %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold"
-                            onclick="return confirm('Marcar como pago e criar lançamento de R$ {{ item.valor|floatformat:2 }}?')">
-                        Pagar
-                    </button>
-                </form>
+                <button @click="modalAberto = true" class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                    Pagar
+                </button>
+            </div>
+            <!-- Modal Pagar/Dispensar -->
+            <div x-show="modalAberto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="modalAberto = false">
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4" @click.stop>
+                    <h3 class="text-lg font-bold text-gray-800 mb-1">{{ item.conta_pagar.descricao }}</h3>
+                    <p class="text-sm text-gray-500 mb-4">Venc.: {{ item.data_vencimento|date:"d/m/Y" }}{% if item.conta_pagar.valor_estimado %} <span class="text-yellow-600">(valor estimado)</span>{% endif %}</p>
+                    <form action="{% url 'pagar_conta' item.id %}" method="post" class="mb-3">
+                        {% csrf_token %}
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Valor real (R$)</label>
+                        <input type="text" name="valor_real" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
+                        <button type="submit" class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                            Pagar e criar lançamento
+                        </button>
+                    </form>
+                    <form action="{% url 'dispensar_conta' item.id %}" method="post" class="mb-3">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold"
+                                onclick="return confirm('Dispensar esta conta sem criar lançamento?')">
+                            Não precisei pagar
+                        </button>
+                    </form>
+                    <button @click="modalAberto = false" class="w-full px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancelar</button>
+                </div>
             </div>
         </div>
         {% endfor %}

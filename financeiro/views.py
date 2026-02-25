@@ -813,6 +813,8 @@ def contas_pagar(request):
             valor = valor / total_parcelas  # valor da parcela
             recorrencia = 'parcelada'
 
+        valor_estimado = request.POST.get('valor_estimado') == 'on'
+
         conta = ContaPagar.objects.create(
             empresa=empresa,
             descricao=descricao,
@@ -828,6 +830,7 @@ def contas_pagar(request):
             observacao=observacao,
             parcelado=parcelado,
             total_parcelas=total_parcelas,
+            valor_estimado=valor_estimado,
         )
 
         # Se parcelado, gerar todas as parcelas de uma vez
@@ -893,6 +896,17 @@ def pagar_conta(request, item_id):
         messages.warning(request, 'Esta conta já foi paga.')
         return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
 
+    # Se informado valor_real, usar esse valor; senão, usar item.valor
+    valor_real_str = request.POST.get('valor_real', '').strip().replace(',', '.')
+    if valor_real_str:
+        try:
+            valor_pago = Decimal(valor_real_str)
+        except Exception:
+            valor_pago = item.valor
+        item.valor = valor_pago
+    else:
+        valor_pago = item.valor
+
     # Criar lançamento de saída
     lancamento = Lancamento.objects.create(
         empresa=item.conta_pagar.empresa,
@@ -900,7 +914,7 @@ def pagar_conta(request, item_id):
         tipo='saida',
         categoria=item.conta_pagar.categoria,
         descricao=f'{item.conta_pagar.descricao} - {item.mes:02d}/{item.ano}',
-        valor=item.valor,
+        valor=valor_pago,
         data=timezone.localdate(),
         observacao=f'Conta a pagar recorrente (venc. {item.data_vencimento.strftime("%d/%m/%Y")})',
         criado_por=pessoa,
@@ -911,7 +925,33 @@ def pagar_conta(request, item_id):
     item.lancamento = lancamento
     item.save()
 
-    messages.success(request, f'Conta "{item.conta_pagar.descricao}" paga - Lançamento de R$ {item.valor:,.2f} criado.')
+    messages.success(request, f'Conta "{item.conta_pagar.descricao}" paga - Lançamento de R$ {valor_pago:,.2f} criado.')
+    return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
+
+
+@login_required
+@require_POST
+def dispensar_conta(request, item_id):
+    """Dispensa um item de conta a pagar sem criar lançamento"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    item = get_object_or_404(ContaPagarItem, id=item_id)
+
+    if item.pago:
+        messages.warning(request, 'Esta conta já foi paga.')
+        return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
+
+    if item.dispensado:
+        messages.warning(request, 'Esta conta já foi dispensada.')
+        return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
+
+    item.dispensado = True
+    item.dispensado_em = timezone.now()
+    item.save()
+
+    messages.success(request, f'Conta "{item.conta_pagar.descricao}" dispensada (sem lançamento).')
     return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
 
 

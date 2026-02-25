@@ -308,15 +308,15 @@ def rotina_diaria(request):
     # Demandas vencendo amanhã
     vencendo_amanha = base_qs.filter(filtro, prazo__range=(inicio_amanha, fim_amanha)).order_by('-prioridade', 'prazo')
 
-    # Contas a pagar do dia (data_execucao == hoje e não pagas)
+    # Contas a pagar do dia (data_execucao == hoje e não pagas nem dispensadas)
     from financeiro.models import ContaPagarItem
     contas_pagar_hoje = ContaPagarItem.objects.filter(
-        data_execucao=hoje, pago=False,
+        data_execucao=hoje, pago=False, dispensado=False,
     ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
 
-    # Contas a pagar atrasadas (data_execucao < hoje e não pagas)
+    # Contas a pagar atrasadas (data_execucao < hoje e não pagas nem dispensadas)
     contas_pagar_atrasadas = ContaPagarItem.objects.filter(
-        data_execucao__lt=hoje, pago=False,
+        data_execucao__lt=hoje, pago=False, dispensado=False,
     ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
 
     context = {

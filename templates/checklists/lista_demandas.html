@@ -224,11 +224,50 @@
         </form>
     </div>
 
-    <!-- Tabela de Concluidos -->
+    <!-- Cards Mobile -->
     {% if demandas_concluidas %}
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div class="overflow-x-auto">
-            <table id="tabela-concluidos" class="w-full text-sm">
+    <div id="cards-container" class="md:hidden space-y-3">
+        {% for demanda in demandas_concluidas %}
+        <div class="card-item bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-green-500 {% if forloop.counter > 10 %}hidden{% endif %}">
+            <div class="flex justify-between items-start">
+                <div class="flex-1 min-w-0">
+                    <h3 class="font-medium text-gray-900 dark:text-white text-sm truncate">
+                        {{ demanda.titulo }}
+                    </h3>
+                    <div class="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span class="inline-block w-2 h-2 rounded flex-shrink-0" style="background-color: {{ demanda.empresa.cor }};"></span>
+                        <span class="truncate">{{ demanda.empresa.nome }}</span>
+                        <span>•</span>
+                        <span class="truncate">{{ demanda.responsavel.nome }}</span>
+                    </div>
+                    <div class="mt-2 text-xs">
+                        <span class="text-green-600 dark:text-green-400 font-medium">{{ demanda.concluido_em|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' demanda.id %}"
+                   class="ml-3 px-3 py-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-xs rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 flex-shrink-0">
+                    Abrir
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Load More Button -->
+    {% if demandas_concluidas.count > 10 %}
+    <div id="load-more-container" class="md:hidden mt-4 text-center">
+        <button id="load-more-btn" onclick="loadMoreCards()"
+            class="px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm">
+            Carregar mais
+            <span id="cards-remaining" class="text-gray-500 dark:text-gray-400 ml-1">({{ demandas_concluidas.count|add:"-10" }} restantes)</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Tabela Desktop -->
+    <div class="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="overflow-x-auto p-4">
+            <table id="tabela-concluidos" class="w-full text-sm stripe hover">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
                         <th class="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Titulo</th>
@@ -307,6 +346,34 @@ document.addEventListener('DOMContentLoaded', function() {
         showTab('concluidos');
     }
 });
+
+// Load More Cards
+let cardsShown = 10;
+const cardsPerLoad = 10;
+
+function loadMoreCards() {
+    const cards = document.querySelectorAll('#cards-container .card-item');
+    const totalCards = cards.length;
+    let newCardsShown = 0;
+
+    for (let i = cardsShown; i < cardsShown + cardsPerLoad && i < totalCards; i++) {
+        cards[i].classList.remove('hidden');
+        newCardsShown++;
+    }
+
+    cardsShown += newCardsShown;
+
+    // Atualiza contador ou esconde botao
+    const remaining = totalCards - cardsShown;
+    const remainingSpan = document.getElementById('cards-remaining');
+    const loadMoreContainer = document.getElementById('load-more-container');
+
+    if (remaining <= 0) {
+        loadMoreContainer.classList.add('hidden');
+    } else {
+        remainingSpan.textContent = '(' + remaining + ' restantes)';
+    }
+}
 </script>
 {% endblock %}
 

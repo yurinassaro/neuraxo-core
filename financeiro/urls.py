@@ -20,6 +20,7 @@ urlpatterns = [
     path('registrar-retirada/', views.registrar_retirada, name='registrar_retirada'),
     path('contas-pagar/', views.contas_pagar, name='contas_pagar'),
     path('contas-pagar/pagar/<int:item_id>/', views.pagar_conta, name='pagar_conta'),
+    path('contas-pagar/dispensar/<int:item_id>/', views.dispensar_conta, name='dispensar_conta'),
     # Contas a Receber
     path('contas-receber/', views.contas_receber, name='contas_receber'),
     path('contas-receber/<int:conta_id>/', views.detalhe_conta_receber, name='detalhe_conta_receber'),
