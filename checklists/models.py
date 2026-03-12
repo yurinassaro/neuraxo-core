@@ -681,6 +681,7 @@ class AproveitamentoDiario(models.Model):
         return f"{self.pessoa.nome} - {self.data} - {self.percentual}%"
 
     def get_tempo_formatado(self):
+
         """Tempo formatado HH:MM"""
         horas = self.tempo_total_segundos // 3600
         minutos = (self.tempo_total_segundos % 3600) // 60
@@ -728,3 +729,26 @@ class TarefaNaoConcluida(models.Model):
 
     def __str__(self):
         return f"{self.checklist_item.template.titulo} - {self.checklist_item.data_referencia}"
+
+
+# ============================================
+# ANOTAÇÕES / BLOCO DE NOTAS PESSOAL
+# ============================================
+
+class Anotacao(models.Model):
+    """Bloco de notas pessoal - credenciais, processos, links, lembretes"""
+    pessoa = models.ForeignKey(Pessoa, on_delete=models.CASCADE, related_name='anotacoes')
+    titulo = models.CharField(max_length=200)
+    conteudo = models.TextField()
+    cor = models.CharField(max_length=7, default='#fef3c7', help_text='Cor do card (hex)')
+    fixado = models.BooleanField(default=False)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Anotação'
+        verbose_name_plural = 'Anotações'
+        ordering = ['-fixado', '-atualizado_em']
+
+    def __str__(self):
+        return f"{self.titulo} - {self.pessoa.nome}"

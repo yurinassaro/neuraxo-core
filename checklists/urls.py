@@ -114,6 +114,12 @@ urlpatterns = [
     path('rotinas/nova/', views.criar_rotina, name='criar_rotina'),
     path('rotinas/<int:template_id>/editar/', views.editar_rotina, name='editar_rotina'),
 
+    # Anotações / Bloco de Notas
+    path('anotacoes/', views.anotacoes, name='anotacoes'),
+    path('anotacoes/<int:anotacao_id>/editar/', views.editar_anotacao, name='editar_anotacao'),
+    path('anotacoes/<int:anotacao_id>/excluir/', views.excluir_anotacao, name='excluir_anotacao'),
+    path('anotacoes/<int:anotacao_id>/fixar/', views.fixar_anotacao, name='fixar_anotacao'),
+
     # Calendário
     path('calendario/', views.calendario, name='calendario'),
     path('api/calendario/eventos/', views.calendario_eventos, name='calendario_eventos'),

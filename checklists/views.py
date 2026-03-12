@@ -11,7 +11,7 @@ from .models import (
     Demanda, SubTarefaDemanda, AnexoDemanda, ComentarioDemanda,
     StatusDemanda, PrioridadeDemanda, AproveitamentoDiario,
     Projeto, StatusProjeto, ProjetoTemplate, TipoEtapa,
-    MapaMentalNo, TipoNoMapa,
+    MapaMentalNo, TipoNoMapa, Anotacao,
 )
 from django.conf import settings
 from core.models import Pessoa, Empresa, Cliente
@@ -3287,3 +3287,90 @@ def editar_no_mapa(request, no_id):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================
+# ANOTAÇÕES / BLOCO DE NOTAS PESSOAL
+# ============================================
+
+@login_required
+def anotacoes(request):
+    """Lista e cria anotações pessoais"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        messages.warning(request, 'Seu usuário não está vinculado a uma pessoa.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        titulo = request.POST.get('titulo', '').strip()
+        conteudo = request.POST.get('conteudo', '').strip()
+        cor = request.POST.get('cor', '#fef3c7')
+        if titulo and conteudo:
+            Anotacao.objects.create(pessoa=pessoa, titulo=titulo, conteudo=conteudo, cor=cor)
+            messages.success(request, 'Anotação criada!')
+        else:
+            messages.error(request, 'Título e conteúdo são obrigatórios.')
+        return redirect('anotacoes')
+
+    q = request.GET.get('q', '').strip()
+    notas = Anotacao.objects.filter(pessoa=pessoa)
+    if q:
+        notas = notas.filter(Q(titulo__icontains=q) | Q(conteudo__icontains=q))
+
+    return render(request, 'checklists/anotacoes.html', {
+        'notas': notas,
+        'q': q,
+    })
+
+
+@login_required
+@require_POST
+def editar_anotacao(request, anotacao_id):
+    """Edita uma anotação existente"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'error': 'Sem vínculo'}, status=403)
+
+    anotacao = get_object_or_404(Anotacao, id=anotacao_id, pessoa=pessoa)
+    titulo = request.POST.get('titulo', '').strip()
+    conteudo = request.POST.get('conteudo', '').strip()
+    cor = request.POST.get('cor', anotacao.cor)
+
+    if titulo and conteudo:
+        anotacao.titulo = titulo
+        anotacao.conteudo = conteudo
+        anotacao.cor = cor
+        anotacao.save()
+        messages.success(request, 'Anotação atualizada!')
+    else:
+        messages.error(request, 'Título e conteúdo são obrigatórios.')
+
+    return redirect('anotacoes')
+
+
+@login_required
+@require_POST
+def excluir_anotacao(request, anotacao_id):
+    """Exclui uma anotação"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'error': 'Sem vínculo'}, status=403)
+
+    anotacao = get_object_or_404(Anotacao, id=anotacao_id, pessoa=pessoa)
+    anotacao.delete()
+    messages.success(request, 'Anotação excluída!')
+    return redirect('anotacoes')
+
+
+@login_required
+@require_POST
+def fixar_anotacao(request, anotacao_id):
+    """Toggle fixar/desafixar anotação"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'error': 'Sem vínculo'}, status=403)
+
+    anotacao = get_object_or_404(Anotacao, id=anotacao_id, pessoa=pessoa)
+    anotacao.fixado = not anotacao.fixado
+    anotacao.save()
+    return redirect('anotacoes')

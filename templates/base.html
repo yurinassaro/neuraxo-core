@@ -122,6 +122,7 @@
             darkMode: 'class',
         }
     </script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         [x-cloak] { display: none !important; }
         /* Cores de prioridade */
@@ -165,6 +166,7 @@
                     <a href="{% url 'acompanhamento' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Acompanhamento</a>
                     {% endif %}
                     <a href="{% url 'calendario' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Calendário</a>
+                    <a href="{% url 'anotacoes' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">Anotações</a>
                     <div class="relative group">
                         <a href="{% url 'dashboard_financeiro' %}" class="hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded flex items-center text-sm">
                             Financeiro
@@ -196,6 +198,28 @@
                             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
                         </svg>
                     </button>
+                    {% if tenants_disponiveis %}
+                    <div class="relative group">
+                        <button class="flex items-center space-x-1 hover:bg-indigo-700 dark:hover:bg-gray-700 px-3 py-2 rounded text-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                            <span>{{ tenant_nome|default:"Trocar" }}</span>
+                        </button>
+                        <div class="absolute right-0 top-full mt-0 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 hidden group-hover:block z-50">
+                            <div class="px-4 py-2 border-b dark:border-gray-700">
+                                <span class="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Trocar Espaço</span>
+                            </div>
+                            {% for t in tenants_disponiveis %}
+                            <a href="{% if request.is_secure %}https{% else %}http{% endif %}://{{ t.domain }}"
+                               class="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:hover:bg-gray-700 {% if t.is_atual %}bg-indigo-50 dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 font-semibold{% else %}text-gray-700 dark:text-gray-200{% endif %} {% if forloop.last %}rounded-b-lg{% endif %}">
+                                <span>{{ t.nome }}</span>
+                                <span class="text-xs px-1.5 py-0.5 rounded {% if t.is_gestor %}bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300{% else %}bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300{% endif %}">
+                                    {% if t.is_gestor %}Gestor{% else %}Func.{% endif %}
+                                </span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                     <span class="text-indigo-200 dark:text-gray-400 text-sm">{{ user.username }}</span>
                     <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button type="submit" class="bg-indigo-700 dark:bg-gray-700 hover:bg-indigo-800 dark:hover:bg-gray-600 px-3 py-2 rounded text-sm">Sair</button></form>
                 </div>
@@ -214,6 +238,7 @@
                 <a href="{% url 'acompanhamento' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Acompanhamento</a>
                 {% endif %}
                 <a href="{% url 'calendario' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Calendário</a>
+                <a href="{% url 'anotacoes' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Anotações</a>
                 <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2">
                     <span class="px-3 text-indigo-300 dark:text-gray-400 text-sm">Financeiro</span>
                     <a href="{% url 'dashboard_financeiro' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3">Dashboard</a>
@@ -228,6 +253,20 @@
                 <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2">
                     <a href="{% url 'wapi_painel' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">WhatsApp</a>
                     <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700">Admin</a>
+                </div>
+                {% endif %}
+                {% if tenants_disponiveis %}
+                <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2">
+                    <span class="px-3 text-indigo-300 dark:text-gray-400 text-sm">Trocar Espaço</span>
+                    {% for t in tenants_disponiveis %}
+                    <a href="{% if request.is_secure %}https{% else %}http{% endif %}://{{ t.domain }}"
+                       class="flex items-center justify-between px-3 py-2 rounded hover:bg-indigo-600 dark:hover:bg-gray-700 ml-3 {% if t.is_atual %}bg-indigo-800 dark:bg-gray-600{% endif %}">
+                        <span>{{ t.nome }}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded {% if t.is_gestor %}bg-green-800 text-green-200{% else %}bg-indigo-800 text-indigo-200{% endif %}">
+                            {% if t.is_gestor %}Gestor{% else %}Func.{% endif %}
+                        </span>
+                    </a>
+                    {% endfor %}
                 </div>
                 {% endif %}
                 <div class="border-t border-indigo-500 dark:border-gray-700 my-2 pt-2 flex items-center justify-between">

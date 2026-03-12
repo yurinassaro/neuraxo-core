@@ -136,11 +136,13 @@
             </div>
             <div class="divide-y">
                 {% for item in itens_mes %}
-                <div class="p-4 flex items-center justify-between {% if item.pago %}bg-green-50{% elif item.data_execucao < hoje %}bg-red-50{% endif %}">
+                <div class="p-4 flex items-center justify-between {% if item.pago %}bg-green-50{% elif item.dispensado %}bg-gray-50{% elif item.data_execucao < hoje %}bg-red-50{% endif %}" x-data="{ modalAberto: false }">
                     <div class="flex-1">
                         <div class="flex items-center space-x-2">
                             {% if item.pago %}
                             <span class="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded font-bold">PAGO</span>
+                            {% elif item.dispensado %}
+                            <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded font-bold">DISPENSADO</span>
                             {% elif item.data_execucao < hoje %}
                             <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 rounded font-bold">ATRASADO</span>
                             {% elif item.data_execucao == hoje %}
@@ -168,19 +170,36 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-3">
-                        <span class="font-bold {% if item.pago %}text-green-600{% elif item.dispensado %}text-gray-400{% else %}text-gray-800{% endif %}">
+                        <span class="font-bold {% if item.pago %}text-green-600{% elif item.dispensado %}text-gray-400 line-through{% else %}text-gray-800{% endif %}">
                             R$ {{ item.valor|floatformat:2 }}
                         </span>
                         {% if not item.pago and not item.dispensado %}
-                        <form action="{% url 'pagar_conta' item.id %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
-                                    onclick="return confirm('Marcar como pago e criar lançamento?')">
-                                Pagar
-                            </button>
-                        </form>
-                        {% elif item.dispensado %}
-                        <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded font-bold">DISPENSADO</span>
+                        <button @click="modalAberto = true" class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
+                            Pagar
+                        </button>
+                        <!-- Modal Pagar/Dispensar -->
+                        <div x-show="modalAberto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @click.self="modalAberto = false">
+                            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4" @click.stop>
+                                <h3 class="text-lg font-bold text-gray-800 mb-1">{{ item.conta_pagar.descricao }}</h3>
+                                <p class="text-sm text-gray-500 mb-4">Venc.: {{ item.data_vencimento|date:"d/m/Y" }}{% if item.conta_pagar.valor_estimado %} <span class="text-yellow-600">(valor estimado)</span>{% endif %}</p>
+                                <form action="{% url 'pagar_conta' item.id %}" method="post" class="mb-3">
+                                    {% csrf_token %}
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Valor real (R$)</label>
+                                    <input type="text" name="valor_real" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
+                                    <button type="submit" class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                                        Pagar e criar lançamento
+                                    </button>
+                                </form>
+                                <form action="{% url 'dispensar_conta' item.id %}" method="post" class="mb-3">
+                                    {% csrf_token %}
+                                    <button type="submit" class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold"
+                                            onclick="return confirm('Dispensar esta conta sem criar lançamento?')">
+                                        Não precisei pagar
+                                    </button>
+                                </form>
+                                <button @click="modalAberto = false" class="w-full px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancelar</button>
+                            </div>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -216,7 +235,7 @@
                             {% endif %}
                             <span>{{ conta.get_recorrencia_display }}</span>
                             <span>Vence dia {{ conta.dia_vencimento }}</span>
-                            <span>{{ conta.get_dia_execucao_display }}</span>
+                            <span>{% if conta.dia_execucao == 'dia_mes' %}Paga dia {{ conta.dia_execucao_mensal }}{% else %}{{ conta.get_dia_execucao_display }}{% endif %}</span>
                             {% if conta.categoria %}<span class="px-1.5 py-0.5 rounded" style="background:{{ conta.categoria.cor }}20; color:{{ conta.categoria.cor }}">{{ conta.categoria.nome }}</span>{% endif %}
                         </div>
                         {% if conta.observacao %}

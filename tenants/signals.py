@@ -79,7 +79,7 @@ def create_tenant_initial_data(sender, instance, created, **kwargs):
         with tenant_context(instance):
             # Criar superusuário
             if not User.objects.filter(username=username).exists():
-                User.objects.create_superuser(
+                user = User.objects.create_superuser(
                     username=username,
                     email=f'admin@{slug}.neuraxo.com.br',
                     password=default_password,
@@ -88,6 +88,29 @@ def create_tenant_initial_data(sender, instance, created, **kwargs):
                     'Superusuário "%s" criado para tenant "%s"',
                     username, instance.schema_name,
                 )
+            else:
+                user = User.objects.get(username=username)
+
+            # Criar Empresa padrão
+            from core.models import Empresa, Pessoa
+            nome_empresa = 'Pessoal'
+            empresa, emp_created = Empresa.objects.get_or_create(
+                nome=nome_empresa,
+                defaults={'cor': '#3b82f6'},
+            )
+            if emp_created:
+                logger.info('Empresa "%s" criada para tenant "%s"', nome_empresa, instance.schema_name)
+
+            # Criar Pessoa admin vinculada ao user
+            if not Pessoa.objects.filter(user=user).exists():
+                pessoa = Pessoa.objects.create(
+                    user=user,
+                    nome='Administrador',
+                    email=user.email,
+                    is_gestor=True,
+                )
+                pessoa.empresas.add(empresa)
+                logger.info('Pessoa admin criada e vinculada à empresa "%s"', nome_empresa)
 
         # Criar grupos de permissão
         _create_permission_groups(instance)

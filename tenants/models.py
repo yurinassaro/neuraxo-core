@@ -94,6 +94,99 @@ class Domain(DomainMixin):
     pass
 
 
+# ============================================
+# ACESSO COMPARTILHADO (Schema Público)
+# ============================================
+
+class AcessoCompartilhado(models.Model):
+    """
+    Permite que um usuário de um tenant acesse outro tenant.
+    Ex: admin.grupo_ronaldo pode acessar empresas do grupo_yuri.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='acessos_compartilhados',
+    )
+    tenant_destino = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='acessos_recebidos',
+        help_text='Tenant que o usuário poderá acessar',
+    )
+    is_gestor = models.BooleanField(
+        default=False,
+        help_text='Se marcado, o usuário terá permissões de gestor no tenant destino',
+    )
+    empresas_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='IDs das empresas permitidas no tenant destino (vazio = nenhuma)',
+    )
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Acesso Compartilhado'
+        verbose_name_plural = 'Acessos Compartilhados'
+        unique_together = ['user', 'tenant_destino']
+
+    def __str__(self):
+        return f"{self.user.username} → {self.tenant_destino.nome} ({'Gestor' if self.is_gestor else 'Funcionário'})"
+
+    def get_empresas_display(self):
+        """Retorna nomes das empresas permitidas"""
+        if not self.empresas_ids:
+            return "Nenhuma"
+        from django_tenants.utils import schema_context
+        from core.models import Empresa
+        with schema_context(self.tenant_destino.schema_name):
+            empresas = Empresa.objects.filter(id__in=self.empresas_ids, ativo=True)
+            return ", ".join([e.nome for e in empresas])
+
+    def sincronizar_pessoa(self):
+        """Cria ou atualiza Pessoa no tenant destino com as empresas permitidas"""
+        from django_tenants.utils import schema_context
+        from core.models import Pessoa, Empresa
+
+        with schema_context(self.tenant_destino.schema_name):
+            pessoa, created = Pessoa.objects.get_or_create(
+                user=self.user,
+                defaults={
+                    'nome': self.user.get_full_name() or self.user.username,
+                    'email': self.user.email,
+                    'is_gestor': self.is_gestor,
+                    'ativo': self.ativo,
+                }
+            )
+
+            if not created:
+                pessoa.is_gestor = self.is_gestor
+                pessoa.ativo = self.ativo
+                pessoa.save(update_fields=['is_gestor', 'ativo'])
+
+            # Sincronizar empresas permitidas
+            if self.empresas_ids:
+                empresas_permitidas = Empresa.objects.filter(
+                    id__in=self.empresas_ids, ativo=True
+                )
+                pessoa.empresas.set(empresas_permitidas)
+            else:
+                pessoa.empresas.clear()
+
+        return pessoa
+
+
+@receiver(post_save, sender=AcessoCompartilhado)
+def sincronizar_acesso(sender, instance, **kwargs):
+    """Ao criar/atualizar um acesso compartilhado, sincroniza a Pessoa no tenant destino"""
+    try:
+        instance.sincronizar_pessoa()
+    except Exception as e:
+        print(f"[AcessoCompartilhado] Erro ao sincronizar: {e}")
+
+
 @receiver(post_save, sender=Client)
 def criar_admin_tenant(sender, instance, created, **kwargs):
     """

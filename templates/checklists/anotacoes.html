@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Anotacoes - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div x-data="{
+    showForm: false,
+    editId: null,
+    editTitulo: '',
+    editConteudo: '',
+    editCor: '#fef3c7',
+    confirmDelete: null,
+    cores: [
+        {valor: '#fef3c7', nome: 'Amarelo'},
+        {valor: '#dbeafe', nome: 'Azul'},
+        {valor: '#dcfce7', nome: 'Verde'},
+        {valor: '#fce7f3', nome: 'Rosa'},
+        {valor: '#f3e8ff', nome: 'Roxo'},
+        {valor: '#fed7aa', nome: 'Laranja'},
+    ],
+    selectedCor: '#fef3c7',
+    openEdit(id, titulo, conteudo, cor) {
+        this.editId = id;
+        this.editTitulo = titulo;
+        this.editConteudo = conteudo;
+        this.editCor = cor;
+    },
+    closeEdit() {
+        this.editId = null;
+        this.editTitulo = '';
+        this.editConteudo = '';
+        this.editCor = '#fef3c7';
+    }
+}" x-cloak>
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Anotacoes</h1>
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <!-- Busca -->
+            <form method="get" class="flex-1 sm:flex-none">
+                <div class="relative">
+                    <input type="text" name="q" value="{{ q }}" placeholder="Buscar..."
+                        class="w-full sm:w-64 pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+            </form>
+            <button @click="showForm = !showForm" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium whitespace-nowrap">
+                + Nova Nota
+            </button>
+        </div>
+    </div>
+
+    {% if q %}
+    <div class="mb-4 flex items-center gap-2">
+        <span class="text-sm text-gray-500 dark:text-gray-400">Resultados para "<strong>{{ q }}</strong>"</span>
+        <a href="{% url 'anotacoes' %}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Limpar</a>
+    </div>
+    {% endif %}
+
+    <!-- Form nova nota -->
+    <div x-show="showForm" x-transition class="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 border border-gray-200 dark:border-gray-700">
+        <form method="post">
+            {% csrf_token %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titulo</label>
+                    <input type="text" name="titulo" required maxlength="200" placeholder="Ex: Senha WiFi, Processo de backup..."
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Conteudo</label>
+                    <textarea name="conteudo" required rows="4" placeholder="Escreva aqui..."
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cor</label>
+                    <div class="flex gap-2">
+                        <template x-for="c in cores" :key="c.valor">
+                            <button type="button" @click="selectedCor = c.valor"
+                                class="w-8 h-8 rounded-full border-2 transition-all"
+                                :style="'background-color:' + c.valor"
+                                :class="selectedCor === c.valor ? 'border-indigo-600 scale-110 ring-2 ring-indigo-300' : 'border-gray-300 dark:border-gray-600'"
+                                :title="c.nome">
+                            </button>
+                        </template>
+                    </div>
+                    <input type="hidden" name="cor" :value="selectedCor">
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="showForm = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Salvar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Grid de notas -->
+    {% if notas %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {% for nota in notas %}
+        <div class="rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:scale-[1.02] hover:shadow-md"
+             style="background-color: {{ nota.cor }}">
+            <!-- Header do card -->
+            <div class="px-4 pt-3 pb-2 flex items-start justify-between">
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                    {% if nota.fixado %}
+                    <svg class="w-4 h-4 text-indigo-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.828.722a.5.5 0 01.354.146l4.95 4.95a.5.5 0 01-.707.708l-.797-.797-3.89 3.89-.06 2.546a.5.5 0 01-.146.354l-1.414 1.414a.5.5 0 01-.708 0L5.29 11.813l-3.536 3.536a.5.5 0 11-.707-.708L4.582 11.106 2.464 8.988a.5.5 0 010-.708l1.414-1.414a.5.5 0 01.354-.146l2.546-.06 3.89-3.89-.798-.797a.5.5 0 01.708-.707z"/>
+                    </svg>
+                    {% endif %}
+                    <h3 class="font-bold text-gray-800 text-sm truncate">{{ nota.titulo }}</h3>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <!-- Fixar -->
+                    <form method="post" action="{% url 'fixar_anotacao' nota.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="p-1 rounded hover:bg-black/10 transition" title="{% if nota.fixado %}Desafixar{% else %}Fixar{% endif %}">
+                            <svg class="w-4 h-4 {% if nota.fixado %}text-indigo-600{% else %}text-gray-500{% endif %}" fill="{% if nota.fixado %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                            </svg>
+                        </button>
+                    </form>
+                    <!-- Editar -->
+                    <button @click="openEdit({{ nota.id }}, '{{ nota.titulo|escapejs }}', '{{ nota.conteudo|escapejs }}', '{{ nota.cor }}')"
+                        class="p-1 rounded hover:bg-black/10 transition" title="Editar">
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <!-- Excluir -->
+                    <button @click="confirmDelete = {{ nota.id }}" class="p-1 rounded hover:bg-black/10 transition" title="Excluir">
+                        <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Conteudo -->
+            <div class="px-4 pb-2 flex-1">
+                <p class="text-gray-700 text-sm whitespace-pre-line break-words line-clamp-6">{{ nota.conteudo }}</p>
+            </div>
+            <!-- Footer -->
+            <div class="px-4 py-2 text-xs text-gray-500 border-t border-black/5">
+                {{ nota.atualizado_em|timesince }} atras
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        <p class="text-gray-500 dark:text-gray-400 text-lg">{% if q %}Nenhuma anotacao encontrada{% else %}Nenhuma anotacao ainda{% endif %}</p>
+        <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">{% if q %}Tente outro termo de busca{% else %}Clique em "+ Nova Nota" para comecar{% endif %}</p>
+    </div>
+    {% endif %}
+
+    <!-- Modal Editar -->
+    <div x-show="editId" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition>
+        <div class="fixed inset-0 bg-black/50" @click="closeEdit()"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg relative z-10 p-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Editar Anotacao</h3>
+            <form method="post" :action="'/anotacoes/' + editId + '/editar/'">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titulo</label>
+                        <input type="text" name="titulo" x-model="editTitulo" required maxlength="200"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Conteudo</label>
+                        <textarea name="conteudo" x-model="editConteudo" required rows="6"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cor</label>
+                        <div class="flex gap-2">
+                            <template x-for="c in cores" :key="c.valor">
+                                <button type="button" @click="editCor = c.valor"
+                                    class="w-8 h-8 rounded-full border-2 transition-all"
+                                    :style="'background-color:' + c.valor"
+                                    :class="editCor === c.valor ? 'border-indigo-600 scale-110 ring-2 ring-indigo-300' : 'border-gray-300 dark:border-gray-600'"
+                                    :title="c.nome">
+                                </button>
+                            </template>
+                        </div>
+                        <input type="hidden" name="cor" :value="editCor">
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="closeEdit()" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Salvar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Exclusao -->
+    <div x-show="confirmDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition>
+        <div class="fixed inset-0 bg-black/50" @click="confirmDelete = null"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative z-10 p-6 text-center">
+            <svg class="w-12 h-12 mx-auto text-red-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">Excluir anotacao?</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Esta acao nao pode ser desfeita.</p>
+            <div class="flex justify-center gap-3">
+                <button @click="confirmDelete = null" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                <form method="post" :action="'/anotacoes/' + confirmDelete + '/excluir/'">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .line-clamp-6 {
+        display: -webkit-box;
+        -webkit-line-clamp: 6;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}

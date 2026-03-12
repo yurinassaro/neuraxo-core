@@ -35,6 +35,7 @@ services:
       - DB_PASSWORD=neuraxo_s3cur3_2026
       - DB_HOST=db
       - DB_PORT=5432
+      - SESSION_COOKIE_DOMAIN=.core.neuraxo.com.br
       - WAPI_URL=${WAPI_URL:-}
       - WAPI_TOKEN=${WAPI_TOKEN:-}
       - WAPI_INSTANCE=${WAPI_INSTANCE:-}

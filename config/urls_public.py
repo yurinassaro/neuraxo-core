@@ -5,6 +5,7 @@ Acessado quando não há tenant (ex: core.neuraxo.com.br sem subdomain).
 from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render, redirect
+from tenants.views import api_empresas_tenant
 
 
 def landing(request):
@@ -19,6 +20,7 @@ def login_redirect(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/tenant/<int:tenant_id>/empresas/', api_empresas_tenant, name='api_empresas_tenant'),
     path('login/', login_redirect, name='login'),
     path('', landing, name='landing'),
 ]

@@ -1,5 +1,5 @@
 """
-Django settings for NeuraxoCheck - Production (Single-Tenant)
+Django settings for NeuraxoCheck - Production (Multi-Tenant)
 """
 
 from pathlib import Path
@@ -18,8 +18,18 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost').split(',')
 
-# Apps
-INSTALLED_APPS = [
+# Proxy headers
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# ============================================
+# MULTI-TENANCY (django-tenants)
+# ============================================
+TENANT_MODEL = 'tenants.Client'
+TENANT_DOMAIN_MODEL = 'tenants.Domain'
+
+# Apps compartilhados (schema public) - dados globais
+SHARED_APPS = [
+    'django_tenants',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -28,14 +38,26 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third party
     'rest_framework',
-    # Local apps
+    # Tenants app (models ficam no public)
+    'tenants',
+]
+
+# Apps por tenant (cada schema tem suas próprias tabelas)
+TENANT_APPS = [
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    # Local apps - dados isolados por tenant
     'core',
     'checklists',
     'notifications',
     'financeiro',
 ]
 
+# INSTALLED_APPS = SHARED_APPS + apps que só existem em TENANT_APPS
+INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
+
 MIDDLEWARE = [
+    'django_tenants.middleware.main.TenantMainMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -44,9 +66,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'tenants.middleware.AcessoCompartilhadoMiddleware',
+    'core.middleware.FriendlyErrorMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
+PUBLIC_SCHEMA_URLCONF = 'config.urls_public'
 
 TEMPLATES = [
     {
@@ -58,6 +83,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'tenants.context_processors.tenant_context',
             ],
         },
     },
@@ -65,10 +91,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database - PostgreSQL
+# Database - MUST use postgresql with django-tenants
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+        'ENGINE': 'django_tenants.postgresql_backend',
         'NAME': os.getenv('DB_NAME', 'neuraxo'),
         'USER': os.getenv('DB_USER', 'neuraxo'),
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
@@ -76,6 +102,8 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
+
+DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -97,6 +125,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Media files
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -105,8 +137,25 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
 }
 
-# Login
-LOGIN_REDIRECT_URL = '/checklists/'
-LOGIN_URL = '/accounts/login/'
+# Auth
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard'
+LOGOUT_REDIRECT_URL = 'login'
+
+# Sessão compartilhada entre subdomínios (para troca de tenant sem relogin)
+SESSION_COOKIE_DOMAIN = os.getenv('SESSION_COOKIE_DOMAIN', None)
+
+# Celery
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_TIMEZONE = TIME_ZONE
+
+# WAPI WhatsApp
+WAPI_URL = os.getenv('WAPI_URL', '')
+WAPI_TOKEN = os.getenv('WAPI_TOKEN', '')
+WAPI_INSTANCE = os.getenv('WAPI_INSTANCE', '')
