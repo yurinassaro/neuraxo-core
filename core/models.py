@@ -138,3 +138,61 @@ class Cliente(models.Model):
 
     def get_projetos_ativos(self):
         return self.projetos.exclude(status__in=['concluido', 'cancelado'])
+
+
+class CategoriaCofre(models.TextChoices):
+    SITE = 'site', 'Site/Sistema'
+    EMAIL = 'email', 'E-mail'
+    BANCO = 'banco', 'Banco/Financeiro'
+    API = 'api', 'Chave API'
+    SERVIDOR = 'servidor', 'Servidor/Hosting'
+    REDE_SOCIAL = 'social', 'Rede Social'
+    OUTRO = 'outro', 'Outro'
+
+
+class ItemCofre(models.Model):
+    """Credencial armazenada no cofre de senhas"""
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='cofre_itens')
+    titulo = models.CharField(max_length=200)
+    categoria = models.CharField(max_length=20, choices=CategoriaCofre.choices, default=CategoriaCofre.SITE)
+    url = models.URLField(blank=True)
+    usuario = models.CharField(max_length=200, blank=True)
+    senha_encrypted = models.TextField(blank=True, help_text='Senha criptografada')
+    notas = models.TextField(blank=True)
+    criado_por = models.ForeignKey('Pessoa', on_delete=models.SET_NULL, null=True, related_name='cofre_criados')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Item do Cofre'
+        verbose_name_plural = 'Itens do Cofre'
+        ordering = ['empresa', 'categoria', 'titulo']
+
+    def __str__(self):
+        return f"{self.titulo} ({self.empresa.nome})"
+
+    def set_senha(self, raw_password):
+        """Criptografa e salva a senha usando Fernet"""
+        if not raw_password:
+            self.senha_encrypted = ''
+            return
+        from cryptography.fernet import Fernet
+        from django.conf import settings
+        import base64, hashlib
+        key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+        f = Fernet(key)
+        self.senha_encrypted = f.encrypt(raw_password.encode()).decode()
+
+    def get_senha(self):
+        """Descriptografa e retorna a senha"""
+        if not self.senha_encrypted:
+            return ''
+        try:
+            from cryptography.fernet import Fernet
+            from django.conf import settings
+            import base64, hashlib
+            key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+            f = Fernet(key)
+            return f.decrypt(self.senha_encrypted.encode()).decode()
+        except Exception:
+            return '***erro ao descriptografar***'

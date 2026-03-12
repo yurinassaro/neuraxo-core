@@ -14,7 +14,7 @@ from .models import (
     MapaMentalNo, TipoNoMapa, Anotacao,
 )
 from django.conf import settings
-from core.models import Pessoa, Empresa, Cliente
+from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre
 from datetime import timedelta, date, datetime
 from calendar import monthrange
 import json
@@ -3374,3 +3374,161 @@ def fixar_anotacao(request, anotacao_id):
     anotacao.fixado = not anotacao.fixado
     anotacao.save()
     return redirect('anotacoes')
+
+
+# ============================================
+# COFRE DE SENHAS
+# ============================================
+
+@login_required
+def cofre(request):
+    """Lista credenciais do cofre de senhas"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        messages.warning(request, 'Seu usuário não está vinculado a uma pessoa.')
+        return redirect('dashboard')
+
+    # Empresas que o usuário tem acesso
+    if pessoa.is_gestor:
+        empresas = Empresa.objects.filter(ativo=True)
+    else:
+        empresas = pessoa.empresas.filter(ativo=True)
+
+    # Filtro por empresa
+    empresa_id = request.GET.get('empresa', '')
+    categoria = request.GET.get('categoria', '')
+    q = request.GET.get('q', '').strip()
+
+    itens = ItemCofre.objects.filter(empresa__in=empresas).select_related('empresa', 'criado_por')
+
+    if empresa_id:
+        itens = itens.filter(empresa_id=empresa_id)
+    if categoria:
+        itens = itens.filter(categoria=categoria)
+    if q:
+        itens = itens.filter(Q(titulo__icontains=q) | Q(usuario__icontains=q) | Q(url__icontains=q) | Q(notas__icontains=q))
+
+    return render(request, 'checklists/cofre.html', {
+        'itens': itens,
+        'empresas': empresas,
+        'empresa_id': empresa_id,
+        'categoria_selecionada': categoria,
+        'categorias': CategoriaCofre.choices,
+        'q': q,
+    })
+
+
+@login_required
+@require_POST
+def cofre_criar(request):
+    """Cria uma nova credencial no cofre"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresa_id = request.POST.get('empresa')
+    titulo = request.POST.get('titulo', '').strip()
+    categoria = request.POST.get('categoria', 'site')
+    url = request.POST.get('url', '').strip()
+    usuario = request.POST.get('usuario', '').strip()
+    senha = request.POST.get('senha', '').strip()
+    notas = request.POST.get('notas', '').strip()
+
+    if not titulo or not empresa_id:
+        messages.error(request, 'Título e empresa são obrigatórios.')
+        return redirect('cofre')
+
+    # Verificar acesso à empresa
+    if pessoa.is_gestor:
+        empresa = get_object_or_404(Empresa, id=empresa_id, ativo=True)
+    else:
+        empresa = get_object_or_404(Empresa, id=empresa_id, ativo=True, pessoas=pessoa)
+
+    item = ItemCofre(
+        empresa=empresa,
+        titulo=titulo,
+        categoria=categoria,
+        url=url,
+        usuario=usuario,
+        notas=notas,
+        criado_por=pessoa,
+    )
+    item.set_senha(senha)
+    item.save()
+    messages.success(request, 'Credencial adicionada ao cofre!')
+    return redirect('cofre')
+
+
+@login_required
+@require_POST
+def cofre_editar(request, item_id):
+    """Edita uma credencial do cofre"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    # Verificar acesso
+    if pessoa.is_gestor:
+        empresas = Empresa.objects.filter(ativo=True)
+    else:
+        empresas = pessoa.empresas.filter(ativo=True)
+
+    item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
+
+    titulo = request.POST.get('titulo', '').strip()
+    categoria = request.POST.get('categoria', item.categoria)
+    url = request.POST.get('url', '').strip()
+    usuario = request.POST.get('usuario', '').strip()
+    senha = request.POST.get('senha', '').strip()
+    notas = request.POST.get('notas', '').strip()
+
+    if not titulo:
+        messages.error(request, 'Título é obrigatório.')
+        return redirect('cofre')
+
+    item.titulo = titulo
+    item.categoria = categoria
+    item.url = url
+    item.usuario = usuario
+    item.notas = notas
+    # Só atualiza senha se fornecida (campo não vazio)
+    if senha:
+        item.set_senha(senha)
+    item.save()
+    messages.success(request, 'Credencial atualizada!')
+    return redirect('cofre')
+
+
+@login_required
+@require_POST
+def cofre_excluir(request, item_id):
+    """Exclui uma credencial do cofre"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    if pessoa.is_gestor:
+        empresas = Empresa.objects.filter(ativo=True)
+    else:
+        empresas = pessoa.empresas.filter(ativo=True)
+
+    item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
+    item.delete()
+    messages.success(request, 'Credencial excluída!')
+    return redirect('cofre')
+
+
+@login_required
+def cofre_ver_senha(request, item_id):
+    """Retorna a senha descriptografada via AJAX (JSON)"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'error': 'Sem vínculo'}, status=403)
+
+    if pessoa.is_gestor:
+        empresas = Empresa.objects.filter(ativo=True)
+    else:
+        empresas = pessoa.empresas.filter(ativo=True)
+
+    item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
+    return JsonResponse({'senha': item.get_senha()})

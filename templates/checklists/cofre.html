@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}Cofre de Senhas - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div x-data="{
+    showForm: false,
+    editId: null,
+    editTitulo: '',
+    editCategoria: 'site',
+    editUrl: '',
+    editUsuario: '',
+    editNotas: '',
+    confirmDelete: null,
+    senhaVisivel: {},
+    copiadoMsg: {},
+    openEdit(id, titulo, categoria, url, usuario, notas) {
+        this.editId = id;
+        this.editTitulo = titulo;
+        this.editCategoria = categoria;
+        this.editUrl = url;
+        this.editUsuario = usuario;
+        this.editNotas = notas;
+    },
+    closeEdit() {
+        this.editId = null;
+        this.editTitulo = '';
+        this.editCategoria = 'site';
+        this.editUrl = '';
+        this.editUsuario = '';
+        this.editNotas = '';
+    },
+    async verSenha(id) {
+        try {
+            const resp = await fetch('/cofre/' + id + '/senha/');
+            const data = await resp.json();
+            if (data.senha !== undefined) {
+                this.senhaVisivel[id] = data.senha;
+                setTimeout(() => { delete this.senhaVisivel[id]; }, 10000);
+            }
+        } catch(e) {
+            console.error('Erro ao buscar senha', e);
+        }
+    },
+    async copiar(texto, chave) {
+        try {
+            await navigator.clipboard.writeText(texto);
+            this.copiadoMsg[chave] = true;
+            setTimeout(() => { delete this.copiadoMsg[chave]; }, 2000);
+        } catch(e) {
+            console.error('Erro ao copiar', e);
+        }
+    },
+    async copiarSenha(id) {
+        try {
+            const resp = await fetch('/cofre/' + id + '/senha/');
+            const data = await resp.json();
+            if (data.senha !== undefined) {
+                await navigator.clipboard.writeText(data.senha);
+                this.copiadoMsg['senha_' + id] = true;
+                setTimeout(() => { delete this.copiadoMsg['senha_' + id]; }, 2000);
+            }
+        } catch(e) {
+            console.error('Erro ao copiar senha', e);
+        }
+    },
+    gerarSenha(inputId) {
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*()-_=+';
+        let senha = '';
+        for (let i = 0; i < 16; i++) {
+            senha += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.getElementById(inputId).value = senha;
+        document.getElementById(inputId).type = 'text';
+    }
+}" x-cloak>
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <div class="flex items-center gap-3">
+            <svg class="w-7 h-7 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Cofre de Senhas</h1>
+        </div>
+        <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+            <!-- Filtro Empresa -->
+            <form method="get" class="flex items-center gap-2 flex-1 sm:flex-none">
+                <select name="empresa" onchange="this.form.submit()"
+                    class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    <option value="">Todas empresas</option>
+                    {% for emp in empresas %}
+                    <option value="{{ emp.id }}" {% if empresa_id|stringformat:"s" == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.nome }}</option>
+                    {% endfor %}
+                </select>
+                {% if categoria_selecionada %}<input type="hidden" name="categoria" value="{{ categoria_selecionada }}">{% endif %}
+                {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+            </form>
+            <!-- Busca -->
+            <form method="get" class="flex-1 sm:flex-none">
+                <div class="relative">
+                    <input type="text" name="q" value="{{ q }}" placeholder="Buscar..."
+                        class="w-full sm:w-48 pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <svg class="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                {% if empresa_id %}<input type="hidden" name="empresa" value="{{ empresa_id }}">{% endif %}
+                {% if categoria_selecionada %}<input type="hidden" name="categoria" value="{{ categoria_selecionada }}">{% endif %}
+            </form>
+            <button @click="showForm = !showForm" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium whitespace-nowrap">
+                + Nova Credencial
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro por Categoria (Tabs) -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <a href="{% url 'cofre' %}{% if empresa_id %}?empresa={{ empresa_id }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition {% if not categoria_selecionada %}bg-indigo-600 text-white{% else %}bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600{% endif %}">
+            Todos
+        </a>
+        {% for cat_val, cat_label in categorias %}
+        <a href="{% url 'cofre' %}?categoria={{ cat_val }}{% if empresa_id %}&empresa={{ empresa_id }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+           class="px-3 py-1.5 rounded-full text-sm font-medium transition {% if categoria_selecionada == cat_val %}bg-indigo-600 text-white{% else %}bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600{% endif %}">
+            {{ cat_label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if q %}
+    <div class="mb-4 flex items-center gap-2">
+        <span class="text-sm text-gray-500 dark:text-gray-400">Resultados para "<strong>{{ q }}</strong>"</span>
+        <a href="{% url 'cofre' %}{% if empresa_id %}?empresa={{ empresa_id }}{% endif %}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Limpar</a>
+    </div>
+    {% endif %}
+
+    <!-- Form nova credencial -->
+    <div x-show="showForm" x-transition class="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-5 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Nova Credencial</h3>
+        <form method="post" action="{% url 'cofre_criar' %}">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa *</label>
+                    <select name="empresa" required
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Selecione...</option>
+                        {% for emp in empresas %}
+                        <option value="{{ emp.id }}">{{ emp.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoria</label>
+                    <select name="categoria"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                        {% for cat_val, cat_label in categorias %}
+                        <option value="{{ cat_val }}">{{ cat_label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titulo *</label>
+                    <input type="text" name="titulo" required maxlength="200" placeholder="Ex: Painel Admin, Gmail, Banco Itau..."
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                    <input type="url" name="url" placeholder="https://..."
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usuario</label>
+                    <input type="text" name="usuario" maxlength="200" placeholder="usuario@email.com"
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Senha</label>
+                    <div class="flex gap-2">
+                        <input type="password" name="senha" id="nova-senha" placeholder="Senha de acesso"
+                            class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <button type="button" @click="gerarSenha('nova-senha')"
+                            class="px-3 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-sm font-medium whitespace-nowrap" title="Gerar senha aleatoria">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Gerar
+                        </button>
+                    </div>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notas</label>
+                    <textarea name="notas" rows="2" placeholder="Observacoes adicionais..."
+                        class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="button" @click="showForm = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Salvar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Grid de credenciais -->
+    {% if itens %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for item in itens %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col transition-transform hover:shadow-md">
+            <!-- Header do card -->
+            <div class="px-4 pt-3 pb-2 flex items-start justify-between border-b border-gray-100 dark:border-gray-700">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <!-- Icone por categoria -->
+                    <div class="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center
+                        {% if item.categoria == 'site' %}bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400
+                        {% elif item.categoria == 'email' %}bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400
+                        {% elif item.categoria == 'banco' %}bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400
+                        {% elif item.categoria == 'api' %}bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400
+                        {% elif item.categoria == 'servidor' %}bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400
+                        {% elif item.categoria == 'social' %}bg-pink-100 dark:bg-pink-900 text-pink-600 dark:text-pink-400
+                        {% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% endif %}">
+                        {% if item.categoria == 'site' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                        {% elif item.categoria == 'email' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        {% elif item.categoria == 'banco' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {% elif item.categoria == 'api' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                        {% elif item.categoria == 'servidor' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+                        {% elif item.categoria == 'social' %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        {% else %}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                        {% endif %}
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-gray-800 dark:text-white text-sm truncate">{{ item.titulo }}</h3>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ item.get_categoria_display }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <!-- Editar -->
+                    <button @click="openEdit({{ item.id }}, '{{ item.titulo|escapejs }}', '{{ item.categoria|escapejs }}', '{{ item.url|escapejs }}', '{{ item.usuario|escapejs }}', '{{ item.notas|escapejs }}')"
+                        class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Editar">
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <!-- Excluir -->
+                    <button @click="confirmDelete = {{ item.id }}" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Excluir">
+                        <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Corpo do card -->
+            <div class="px-4 py-3 flex-1 space-y-2">
+                <!-- Empresa badge -->
+                <div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ item.empresa.cor }}20; color: {{ item.empresa.cor }}; border: 1px solid {{ item.empresa.cor }}40;">
+                        {{ item.empresa.nome }}
+                    </span>
+                </div>
+
+                <!-- Usuario -->
+                {% if item.usuario %}
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ item.usuario }}</span>
+                    </div>
+                    <button @click="copiar('{{ item.usuario|escapejs }}', 'user_{{ item.id }}')"
+                        class="flex-shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Copiar usuario">
+                        <template x-if="!copiadoMsg['user_{{ item.id }}']">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        </template>
+                        <template x-if="copiadoMsg['user_{{ item.id }}']">
+                            <span class="text-xs text-green-600 dark:text-green-400 font-medium">Copiado!</span>
+                        </template>
+                    </button>
+                </div>
+                {% endif %}
+
+                <!-- Senha -->
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        <template x-if="senhaVisivel[{{ item.id }}]">
+                            <span class="text-sm text-gray-700 dark:text-gray-300 font-mono break-all" x-text="senhaVisivel[{{ item.id }}]"></span>
+                        </template>
+                        <template x-if="!senhaVisivel[{{ item.id }}]">
+                            <span class="text-sm text-gray-400">********</span>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <button @click="verSenha({{ item.id }})"
+                            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Ver senha (10s)">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                        <button @click="copiarSenha({{ item.id }})"
+                            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition" title="Copiar senha">
+                            <template x-if="!copiadoMsg['senha_{{ item.id }}']">
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            </template>
+                            <template x-if="copiadoMsg['senha_{{ item.id }}']">
+                                <span class="text-xs text-green-600 dark:text-green-400 font-medium">Copiado!</span>
+                            </template>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- URL -->
+                {% if item.url %}
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    <a href="{{ item.url }}" target="_blank" rel="noopener" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline truncate">{{ item.url }}</a>
+                </div>
+                {% endif %}
+
+                <!-- Notas -->
+                {% if item.notas %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">{{ item.notas }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Footer -->
+            <div class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700 flex justify-between">
+                <span>{{ item.atualizado_em|timesince }} atras</span>
+                {% if item.criado_por %}<span>por {{ item.criado_por.nome }}</span>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        <p class="text-gray-500 dark:text-gray-400 text-lg">{% if q %}Nenhuma credencial encontrada{% else %}Nenhuma credencial cadastrada{% endif %}</p>
+        <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">{% if q %}Tente outro termo de busca{% else %}Clique em "+ Nova Credencial" para comecar{% endif %}</p>
+    </div>
+    {% endif %}
+
+    <!-- Modal Editar -->
+    <div x-show="editId" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition>
+        <div class="fixed inset-0 bg-black/50" @click="closeEdit()"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg relative z-10 p-6 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Editar Credencial</h3>
+            <form method="post" :action="'/cofre/' + editId + '/editar/'">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titulo *</label>
+                        <input type="text" name="titulo" x-model="editTitulo" required maxlength="200"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoria</label>
+                        <select name="categoria" x-model="editCategoria"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                            {% for cat_val, cat_label in categorias %}
+                            <option value="{{ cat_val }}">{{ cat_label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                        <input type="url" name="url" x-model="editUrl" placeholder="https://..."
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usuario</label>
+                        <input type="text" name="usuario" x-model="editUsuario" maxlength="200"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Senha <span class="text-xs text-gray-400">(deixe vazio para manter a atual)</span></label>
+                        <div class="flex gap-2">
+                            <input type="password" name="senha" :id="'edit-senha-' + editId" placeholder="Nova senha (opcional)"
+                                class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <button type="button" @click="gerarSenha('edit-senha-' + editId)"
+                                class="px-3 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-sm font-medium whitespace-nowrap">
+                                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                Gerar
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notas</label>
+                        <textarea name="notas" x-model="editNotas" rows="3"
+                            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="closeEdit()" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Salvar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Exclusao -->
+    <div x-show="confirmDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition>
+        <div class="fixed inset-0 bg-black/50" @click="confirmDelete = null"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative z-10 p-6 text-center">
+            <svg class="w-12 h-12 mx-auto text-red-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">Excluir credencial?</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Esta acao nao pode ser desfeita. A senha sera permanentemente removida.</p>
+            <div class="flex justify-center gap-3">
+                <button @click="confirmDelete = null" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                <form method="post" :action="'/cofre/' + confirmDelete + '/excluir/'">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}

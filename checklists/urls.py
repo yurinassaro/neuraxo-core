@@ -120,6 +120,13 @@ urlpatterns = [
     path('anotacoes/<int:anotacao_id>/excluir/', views.excluir_anotacao, name='excluir_anotacao'),
     path('anotacoes/<int:anotacao_id>/fixar/', views.fixar_anotacao, name='fixar_anotacao'),
 
+    # Cofre de Senhas
+    path('cofre/', views.cofre, name='cofre'),
+    path('cofre/criar/', views.cofre_criar, name='cofre_criar'),
+    path('cofre/<int:item_id>/editar/', views.cofre_editar, name='cofre_editar'),
+    path('cofre/<int:item_id>/excluir/', views.cofre_excluir, name='cofre_excluir'),
+    path('cofre/<int:item_id>/senha/', views.cofre_ver_senha, name='cofre_ver_senha'),
+
     # Calendário
     path('calendario/', views.calendario, name='calendario'),
     path('api/calendario/eventos/', views.calendario_eventos, name='calendario_eventos'),
