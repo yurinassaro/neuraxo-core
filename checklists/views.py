@@ -295,7 +295,7 @@ def rotina_diaria(request):
 
     base_qs = Demanda.objects.exclude(
         status__in=[StatusDemanda.CONCLUIDO, StatusDemanda.CANCELADO]
-    ).select_related('responsavel', 'empresa')
+    ).select_related('responsavel', 'empresa', 'projeto')
 
     if pessoa.is_gestor:
         empresas_pessoa = pessoa.empresas.all()
@@ -303,10 +303,29 @@ def rotina_diaria(request):
     else:
         filtro = Q(responsavel=pessoa)
 
-    atrasadas = base_qs.filter(filtro, prazo__lt=inicio_hoje).order_by('prazo')
+    # Todas as atrasadas e vencendo
+    todas_atrasadas = base_qs.filter(filtro, prazo__lt=inicio_hoje).order_by('prazo')
+    todas_vencendo_amanha = base_qs.filter(filtro, prazo__range=(inicio_amanha, fim_amanha)).order_by('-prioridade', 'prazo')
 
-    # Demandas vencendo amanhã
-    vencendo_amanha = base_qs.filter(filtro, prazo__range=(inicio_amanha, fim_amanha)).order_by('-prioridade', 'prazo')
+    # Separar: demandas normais vs etapas de projeto
+    atrasadas = [d for d in todas_atrasadas if not d.projeto_id]
+    atrasadas_projeto = [d for d in todas_atrasadas if d.projeto_id]
+
+    urgencias_hoje_list = list(urgencias_hoje)
+    urgencias_hoje_normal = [d for d in urgencias_hoje_list if not d.projeto_id]
+    urgencias_hoje_projeto = [d for d in urgencias_hoje_list if d.projeto_id]
+
+    vencendo_amanha = [d for d in todas_vencendo_amanha if not d.projeto_id]
+    vencendo_amanha_projeto = [d for d in todas_vencendo_amanha if d.projeto_id]
+
+    # Demandas de projeto pendentes (não atrasadas, não vencendo hoje/amanhã)
+    projeto_pendentes = base_qs.filter(
+        filtro,
+        projeto__isnull=False,
+        prazo__gte=fim_amanha,
+    ).order_by('prazo')
+
+    total_projeto = len(atrasadas_projeto) + len(urgencias_hoje_projeto) + len(vencendo_amanha_projeto) + projeto_pendentes.count()
 
     # Contas a pagar do dia (data_execucao == hoje e não pagas nem dispensadas)
     from financeiro.models import ContaPagarItem
@@ -333,9 +352,17 @@ def rotina_diaria(request):
         'total': total,
         'concluidas': concluidas,
         'em_standby': em_standby,
-        'urgencias_hoje': urgencias_hoje,
+        # Demandas normais (sem projeto)
+        'urgencias_hoje': urgencias_hoje_normal,
         'atrasadas': atrasadas,
         'vencendo_amanha': vencendo_amanha,
+        # Demandas de projeto (aba Projetos)
+        'atrasadas_projeto': atrasadas_projeto,
+        'urgencias_hoje_projeto': urgencias_hoje_projeto,
+        'vencendo_amanha_projeto': vencendo_amanha_projeto,
+        'projeto_pendentes': projeto_pendentes,
+        'total_projeto': total_projeto,
+        # Financeiro
         'contas_pagar_hoje': contas_pagar_hoje,
         'contas_pagar_atrasadas': contas_pagar_atrasadas,
         'tarefas_canceladas': tarefas_canceladas,

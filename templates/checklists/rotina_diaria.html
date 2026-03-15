@@ -27,12 +27,32 @@
     </div>
 </div>
 
+<!-- Abas: Rotina | Projetos -->
+<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+    <nav class="flex space-x-4" aria-label="Tabs">
+        <button type="button" id="tab-rotina" onclick="showTabRotina('rotina')"
+            class="tab-rotina-btn px-4 py-2 text-sm font-medium border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400">
+            Rotina
+        </button>
+        <button type="button" id="tab-projetos" onclick="showTabRotina('projetos')"
+            class="tab-rotina-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+            Projetos
+            {% if total_projeto %}
+            <span class="ml-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs px-2 py-0.5 rounded-full">{{ total_projeto }}</span>
+            {% endif %}
+        </button>
+    </nav>
+</div>
+
+<!-- ===================== ABA ROTINA ===================== -->
+<div id="content-rotina" class="tab-rotina-content">
+
 <!-- Filtros -->
-<div class="bg-white rounded-lg shadow p-4 mb-6">
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
     <form method="get" class="flex flex-wrap gap-4 items-end">
         <div>
-            <label class="block text-sm text-gray-600 mb-1">Status</label>
-            <select name="status" class="px-3 py-2 border rounded-lg">
+            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Status</label>
+            <select name="status" class="px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="">Todos</option>
                 {% for value, label in status_choices %}
                 <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -43,7 +63,7 @@
             Filtrar
         </button>
         {% if status_filter %}
-        <a href="{% url 'rotina_diaria' %}" class="px-4 py-2 text-gray-600 hover:underline">Limpar</a>
+        <a href="{% url 'rotina_diaria' %}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:underline">Limpar</a>
         {% endif %}
     </form>
 </div>
@@ -934,6 +954,217 @@
 </div>
 {% endif %}
 
+
+</div><!-- Fim aba rotina -->
+
+<!-- ===================== ABA PROJETOS ===================== -->
+<div id="content-projetos" class="tab-rotina-content" style="display: none;">
+
+{% if not atrasadas_projeto and not urgencias_hoje_projeto and not vencendo_amanha_projeto and not projeto_pendentes %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+    <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+    </svg>
+    <p class="text-lg">Nenhuma etapa de projeto pendente.</p>
+</div>
+{% endif %}
+
+{% if atrasadas_projeto %}
+<div class="mb-6" x-data="{ aberto: true }">
+    <button @click="aberto = !aberto"
+            class="w-full flex items-center justify-between p-4 bg-red-100 dark:bg-red-900/30 rounded-lg border-2 border-red-400 dark:border-red-700 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+        <div class="flex items-center space-x-3">
+            <svg class="w-7 h-7 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <div class="text-left">
+                <h2 class="text-lg font-bold text-red-800 dark:text-red-300">ETAPAS ATRASADAS</h2>
+                <p class="text-sm text-red-600 dark:text-red-400">Etapas de projeto com prazo vencido</p>
+            </div>
+        </div>
+        <span class="px-3 py-1 bg-red-500 text-white text-sm font-bold rounded-full">{{ atrasadas_projeto|length }}</span>
+    </button>
+    <div x-show="aberto" x-collapse class="mt-3 space-y-3">
+        {% for d in atrasadas_projeto %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-red-500">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center flex-wrap gap-1 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded font-bold">ATRASADA</span>
+                        {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                        <span class="px-2 py-0.5 text-xs bg-red-500 text-white rounded">{{ d.get_prioridade_display }}</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{{ d.empresa.nome }}</span>
+                        {% if d.projeto %}
+                        <span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">{{ d.projeto.titulo|truncatechars:25 }}</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-semibold text-gray-800 dark:text-white">
+                        <a href="{% url 'detalhe_demanda' d.id %}" class="hover:text-red-600">{{ d.titulo }}</a>
+                    </h3>
+                    <div class="flex items-center space-x-4 text-xs text-red-500 mt-1">
+                        <span>Venceu: {{ d.prazo|date:"d/m/Y H:i" }}</span>
+                        {% if d.responsavel %}
+                        <span class="text-gray-500 dark:text-gray-400">{{ d.responsavel.nome }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 text-sm rounded hover:bg-red-200 dark:hover:bg-red-800">Abrir</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if urgencias_hoje_projeto %}
+<div class="mb-6" x-data="{ aberto: true }">
+    <button @click="aberto = !aberto"
+            class="w-full flex items-center justify-between p-4 bg-amber-100 dark:bg-amber-900/30 rounded-lg border-2 border-amber-400 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
+        <div class="flex items-center space-x-3">
+            <svg class="w-7 h-7 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div class="text-left">
+                <h2 class="text-lg font-bold text-amber-800 dark:text-amber-300">VENCEM HOJE</h2>
+                <p class="text-sm text-amber-600 dark:text-amber-400">Etapas de projeto com prazo para hoje</p>
+            </div>
+        </div>
+        <span class="px-3 py-1 bg-amber-500 text-white text-sm font-bold rounded-full">{{ urgencias_hoje_projeto|length }}</span>
+    </button>
+    <div x-show="aberto" x-collapse class="mt-3 space-y-3">
+        {% for d in urgencias_hoje_projeto %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-amber-500">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center flex-wrap gap-1 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded font-bold">VENCE HOJE</span>
+                        {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                        <span class="px-2 py-0.5 text-xs bg-red-500 text-white rounded">{{ d.get_prioridade_display }}</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{{ d.empresa.nome }}</span>
+                        {% if d.projeto %}
+                        <span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">{{ d.projeto.titulo|truncatechars:25 }}</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-semibold text-gray-800 dark:text-white">
+                        <a href="{% url 'detalhe_demanda' d.id %}" class="hover:text-amber-600">{{ d.titulo }}</a>
+                    </h3>
+                    <div class="flex items-center space-x-4 text-xs text-amber-600 mt-1">
+                        <span>Prazo: {{ d.prazo|date:"H:i" }}</span>
+                        {% if d.responsavel %}
+                        <span class="text-gray-500 dark:text-gray-400">{{ d.responsavel.nome }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-sm rounded hover:bg-amber-200 dark:hover:bg-amber-800">Abrir</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if vencendo_amanha_projeto %}
+<div class="mb-6" x-data="{ aberto: true }">
+    <button @click="aberto = !aberto"
+            class="w-full flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <div class="text-left">
+                <h2 class="text-lg font-semibold text-blue-800 dark:text-blue-300">VENCEM AMANHA</h2>
+                <p class="text-sm text-blue-600 dark:text-blue-400">Etapas de projeto para o dia seguinte</p>
+            </div>
+        </div>
+        <span class="px-3 py-1 bg-blue-500 text-white text-sm font-bold rounded-full">{{ vencendo_amanha_projeto|length }}</span>
+    </button>
+    <div x-show="aberto" x-collapse class="mt-3 space-y-3">
+        {% for d in vencendo_amanha_projeto %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-blue-400">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center flex-wrap gap-1 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded font-semibold">AMANHA</span>
+                        {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                        <span class="px-2 py-0.5 text-xs bg-red-500 text-white rounded">{{ d.get_prioridade_display }}</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{{ d.empresa.nome }}</span>
+                        {% if d.projeto %}
+                        <span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">{{ d.projeto.titulo|truncatechars:25 }}</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-semibold text-gray-800 dark:text-white">
+                        <a href="{% url 'detalhe_demanda' d.id %}" class="hover:text-blue-600">{{ d.titulo }}</a>
+                    </h3>
+                    <div class="flex items-center space-x-4 text-xs text-blue-500 mt-1">
+                        <span>Prazo: {{ d.prazo|date:"d/m/Y H:i" }}</span>
+                        {% if d.responsavel %}
+                        <span class="text-gray-500 dark:text-gray-400">{{ d.responsavel.nome }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-sm rounded hover:bg-blue-200 dark:hover:bg-blue-800">Abrir</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if projeto_pendentes %}
+<div class="mb-6" x-data="{ aberto: true }">
+    <button @click="aberto = !aberto"
+            class="w-full flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-300 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors">
+        <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-purple-500 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            <div class="text-left">
+                <h2 class="text-lg font-semibold text-purple-800 dark:text-purple-300">PROXIMAS ETAPAS</h2>
+                <p class="text-sm text-purple-600 dark:text-purple-400">Etapas de projeto com prazo futuro</p>
+            </div>
+        </div>
+        <span class="px-3 py-1 bg-purple-500 text-white text-sm font-bold rounded-full">{{ projeto_pendentes|length }}</span>
+    </button>
+    <div x-show="aberto" x-collapse class="mt-3 space-y-3">
+        {% for d in projeto_pendentes %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border-l-4 border-purple-400">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center flex-wrap gap-1 mb-1">
+                        <span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded font-semibold">
+                            {{ d.get_status_display }}
+                        </span>
+                        {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                        <span class="px-2 py-0.5 text-xs bg-red-500 text-white rounded">{{ d.get_prioridade_display }}</span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{{ d.empresa.nome }}</span>
+                        {% if d.projeto %}
+                        <span class="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">{{ d.projeto.titulo|truncatechars:25 }}</span>
+                        {% endif %}
+                    </div>
+                    <h3 class="font-semibold text-gray-800 dark:text-white">
+                        <a href="{% url 'detalhe_demanda' d.id %}" class="hover:text-purple-600">{{ d.titulo }}</a>
+                    </h3>
+                    <div class="flex items-center space-x-4 text-xs text-purple-500 mt-1">
+                        <span>Prazo: {{ d.prazo|date:"d/m/Y H:i" }}</span>
+                        {% if d.responsavel %}
+                        <span class="text-gray-500 dark:text-gray-400">{{ d.responsavel.nome }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-sm rounded hover:bg-purple-200 dark:hover:bg-purple-800">Abrir</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+</div><!-- Fim aba projetos -->
+
 <!-- Modal de Pausar Tarefa -->
 <div id="modal-pausar" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
@@ -1106,5 +1337,20 @@ function enviarCancelamento() {
 document.getElementById('modal-cancelar').addEventListener('click', function(e) {
     if (e.target === this) fecharModalCancelar();
 });
+
+// ========== ABAS ROTINA / PROJETOS ==========
+function showTabRotina(tab) {
+    // Esconder todos os conteúdos
+    document.querySelectorAll('.tab-rotina-content').forEach(el => el.style.display = 'none');
+    // Resetar estilos dos botões
+    document.querySelectorAll('.tab-rotina-btn').forEach(btn => {
+        btn.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400', 'dark:border-indigo-400');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+    // Mostrar aba selecionada
+    document.getElementById('content-' + tab).style.display = 'block';
+    document.getElementById('tab-' + tab).classList.remove('border-transparent', 'text-gray-500');
+    document.getElementById('tab-' + tab).classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400', 'dark:border-indigo-400');
+}
 </script>
 {% endblock %}
