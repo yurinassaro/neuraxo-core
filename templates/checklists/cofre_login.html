@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Cofre de Senhas - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
+        <!-- Icone cadeado -->
+        <div class="mx-auto w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-6">
+            <svg class="w-10 h-10 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+        </div>
+
+        <h1 class="text-xl font-bold text-gray-800 dark:text-white mb-2">Cofre de Senhas</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Digite sua senha para desbloquear</p>
+
+        <form method="post" action="{% url 'cofre' %}">
+            {% csrf_token %}
+            <div class="mb-4">
+                <input type="password" name="cofre_senha" autofocus required
+                    placeholder="Sua senha de login"
+                    class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none">
+            </div>
+
+            <button type="submit"
+                class="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors">
+                Desbloquear
+            </button>
+        </form>
+
+        {% if messages %}
+        <div class="mt-4">
+            {% for message in messages %}
+            <p class="text-sm text-red-500">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -126,6 +126,7 @@ urlpatterns = [
     path('cofre/<int:item_id>/editar/', views.cofre_editar, name='cofre_editar'),
     path('cofre/<int:item_id>/excluir/', views.cofre_excluir, name='cofre_excluir'),
     path('cofre/<int:item_id>/senha/', views.cofre_ver_senha, name='cofre_ver_senha'),
+    path('cofre/bloquear/', views.cofre_bloquear, name='cofre_bloquear'),
 
     # Calendário
     path('calendario/', views.calendario, name='calendario'),

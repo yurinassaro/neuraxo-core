@@ -3415,6 +3415,23 @@ def cofre(request):
         messages.warning(request, 'Seu usuário não está vinculado a uma pessoa.')
         return redirect('dashboard')
 
+    # Verificar se o cofre está desbloqueado na sessão
+    cofre_desbloqueado = request.session.get('cofre_desbloqueado', False)
+
+    if request.method == 'POST' and 'cofre_senha' in request.POST:
+        from django.contrib.auth import authenticate
+        senha = request.POST.get('cofre_senha', '')
+        user = authenticate(username=request.user.username, password=senha)
+        if user is not None:
+            request.session['cofre_desbloqueado'] = True
+            cofre_desbloqueado = True
+        else:
+            messages.error(request, 'Senha incorreta.')
+            return render(request, 'checklists/cofre_login.html', {'pessoa': pessoa})
+
+    if not cofre_desbloqueado:
+        return render(request, 'checklists/cofre_login.html', {'pessoa': pessoa})
+
     # Empresas que o usuário tem acesso
     if pessoa.is_gestor:
         empresas = Empresa.objects.filter(ativo=True)
@@ -3557,5 +3574,17 @@ def cofre_ver_senha(request, item_id):
     else:
         empresas = pessoa.empresas.filter(ativo=True)
 
+    # Verificar se cofre está desbloqueado
+    if not request.session.get('cofre_desbloqueado', False):
+        return JsonResponse({'error': 'Cofre bloqueado'}, status=403)
+
     item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
     return JsonResponse({'senha': item.get_senha()})
+
+
+@login_required
+@require_POST
+def cofre_bloquear(request):
+    """Bloqueia o cofre (remove desbloqueio da sessão)"""
+    request.session.pop('cofre_desbloqueado', None)
+    return redirect('cofre')
