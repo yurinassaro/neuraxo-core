@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import views_gateway
 
 urlpatterns = [
     path('', views.dashboard_financeiro, name='dashboard_financeiro'),
@@ -37,4 +38,9 @@ urlpatterns = [
     path('relatorio-projeto/', views.relatorio_projeto, name='relatorio_projeto'),
     # Comparativo Mensal
     path('comparativo/', views.comparativo_mensal, name='comparativo_mensal'),
+    # Integrações de Pagamento
+    path('integracoes/', views_gateway.integracoes, name='integracoes'),
+    path('integracoes/conectar/', views_gateway.conectar_gateway, name='conectar_gateway'),
+    path('integracoes/desconectar/<int:empresa_id>/', views_gateway.desconectar_gateway, name='desconectar_gateway'),
+    path('integracoes/testar/<int:empresa_id>/', views_gateway.testar_gateway, name='testar_gateway'),
 ]

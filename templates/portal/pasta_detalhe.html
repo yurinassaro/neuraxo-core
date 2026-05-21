@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ pasta.nome }} - {{ cliente.nome }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3" defer></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-indigo-600 text-white shadow-lg">
+        <div class="w-full px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="font-bold text-lg">{{ cliente.nome }}</h1>
+                <p class="text-indigo-200 text-sm">{{ contato.nome }}</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <a href="{% url 'portal_home' %}" class="text-sm text-indigo-200 hover:text-white">Pendencias</a>
+                <span class="text-indigo-400">|</span>
+                <a href="{% url 'portal_arquivos' %}" class="text-sm text-indigo-200 hover:text-white">Arquivos</a>
+                <span class="text-indigo-400">|</span>
+                <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button type="submit" class="text-sm bg-indigo-700 px-3 py-1.5 rounded hover:bg-indigo-800">Sair</button></form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="w-full py-6 px-4" x-data="{ view: 'grid', lightbox: null }">
+
+        {% if messages %}
+        {% for msg in messages %}
+        <div class="bg-green-100 text-green-800 p-3 rounded-lg mb-4 text-sm">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <a href="{% url 'portal_arquivos' %}" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </a>
+                <svg class="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">{{ pasta.nome }}</h1>
+                    <p class="text-sm text-gray-500">{{ arquivos|length }} arquivo{{ arquivos|length|pluralize }} | {{ pasta.get_tamanho_total }}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Toggle view -->
+                <button @click="view = 'grid'" :class="view === 'grid' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'" class="p-2 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                </button>
+                <button @click="view = 'list'" :class="view === 'list' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'" class="p-2 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Upload area -->
+        <div class="mb-6" x-data="{
+            dragover: false,
+            uploading: false,
+            progress: 0,
+            fileName: '',
+            doUpload(files) {
+                if (!files.length) return;
+                this.uploading = true;
+                this.progress = 0;
+                this.fileName = files.length === 1 ? files[0].name : files.length + ' arquivos';
+                const form = new FormData();
+                form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                for (const f of files) {
+                    if (f.size > 52428800) { alert(f.name + ' excede 50MB'); continue; }
+                    form.append('arquivos', f);
+                }
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) this.progress = Math.round((e.loaded / e.total) * 100);
+                };
+                xhr.onload = () => { window.location.reload(); };
+                xhr.onerror = () => { this.uploading = false; alert('Erro no upload'); };
+                xhr.open('POST', '{% url 'portal_upload_pasta' pasta.id %}');
+                xhr.send(form);
+            }
+        }">
+            <div class="relative border-2 border-dashed rounded-xl p-6 text-center transition-colors"
+                 :class="dragover ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'"
+                 x-show="!uploading"
+                 @dragover.prevent="dragover = true"
+                 @dragleave="dragover = false"
+                 @drop.prevent="dragover = false; doUpload($event.dataTransfer.files)">
+                <input type="file" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                       @change="doUpload($event.target.files)">
+                <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                <p class="text-sm text-gray-500">Arraste arquivos aqui ou <span class="text-indigo-600 font-medium">clique para selecionar</span></p>
+                <p class="text-xs text-gray-400 mt-1">Max 50MB por arquivo</p>
+            </div>
+            <!-- Barra de progresso -->
+            <div x-show="uploading" class="bg-white rounded-xl shadow p-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <svg class="w-6 h-6 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-800">Enviando <span x-text="fileName"></span></p>
+                        <p class="text-xs text-gray-500"><span x-text="progress"></span>% concluido</p>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div class="bg-indigo-600 h-3 rounded-full transition-all duration-300" :style="'width: ' + progress + '%'"></div>
+                </div>
+            </div>
+        </div>
+
+        {% if arquivos %}
+        <!-- Grid View -->
+        <div x-show="view === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {% for arq in arquivos %}
+            <div class="bg-white rounded-xl shadow hover:shadow-md transition group cursor-pointer overflow-hidden"
+                 @click="{% if arq.is_imagem %}lightbox = '{{ arq.arquivo.url }}'{% endif %}">
+                <!-- Preview -->
+                <div class="aspect-square bg-gray-100 relative overflow-hidden">
+                    {% if arq.is_imagem %}
+                    <img src="{{ arq.arquivo.url }}" alt="{{ arq.nome_original }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+                    {% elif arq.is_video %}
+                    <div class="w-full h-full flex items-center justify-center bg-purple-50">
+                        <svg class="w-14 h-14 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    {% else %}
+                    <div class="w-full h-full flex flex-col items-center justify-center bg-gray-50">
+                        <svg class="w-12 h-12 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        <span class="text-xs text-gray-400 mt-1 uppercase">{{ arq.nome_original|truncatechars:4 }}</span>
+                    </div>
+                    {% endif %}
+                    <!-- Download overlay -->
+                    <a href="{{ arq.arquivo.url }}" target="_blank" @click.stop
+                       class="absolute top-2 right-2 p-1.5 bg-white/80 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white shadow">
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    </a>
+                </div>
+                <!-- Info -->
+                <div class="p-2.5">
+                    <p class="text-sm text-gray-800 truncate font-medium">{{ arq.nome_original }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ arq.tamanho_formatado }} | {{ arq.enviado_por }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- List View -->
+        <div x-show="view === 'list'" class="bg-white rounded-xl shadow overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-left">
+                    <tr>
+                        <th class="px-4 py-3 w-12"></th>
+                        <th class="px-4 py-3">Nome</th>
+                        <th class="px-4 py-3">Tamanho</th>
+                        <th class="px-4 py-3">Enviado por</th>
+                        <th class="px-4 py-3">Data</th>
+                        <th class="px-4 py-3 w-10"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for arq in arquivos %}
+                    <tr class="border-t hover:bg-gray-50 cursor-pointer" @click="{% if arq.is_imagem %}lightbox = '{{ arq.arquivo.url }}'{% endif %}">
+                        <td class="px-4 py-2">
+                            {% if arq.is_imagem %}
+                            <img src="{{ arq.arquivo.url }}" class="w-10 h-10 rounded object-cover">
+                            {% elif arq.is_video %}
+                            <div class="w-10 h-10 rounded bg-purple-50 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                            </div>
+                            {% else %}
+                            <div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 font-medium text-gray-800">{{ arq.nome_original }}</td>
+                        <td class="px-4 py-2 text-gray-500">{{ arq.tamanho_formatado }}</td>
+                        <td class="px-4 py-2 text-gray-500">{{ arq.enviado_por }}</td>
+                        <td class="px-4 py-2 text-gray-400 text-xs">{{ arq.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td class="px-4 py-2">
+                            <a href="{{ arq.arquivo.url }}" target="_blank" @click.stop class="text-indigo-600 hover:text-indigo-800">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% else %}
+        <div class="bg-white rounded-xl shadow p-12 text-center text-gray-400">
+            <svg class="w-16 h-16 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            <p>Pasta vazia. Arraste arquivos acima para enviar.</p>
+        </div>
+        {% endif %}
+
+        <!-- Lightbox -->
+        <div x-show="lightbox" x-transition class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" @click="lightbox = null">
+            <button @click="lightbox = null" class="absolute top-4 right-4 text-white/70 hover:text-white">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <img :src="lightbox" class="max-w-full max-h-[90vh] rounded-lg shadow-2xl" @click.stop>
+        </div>
+
+    </div>
+</body>
+</html>

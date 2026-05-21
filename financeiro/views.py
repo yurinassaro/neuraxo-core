@@ -21,6 +21,26 @@ def get_pessoa_or_redirect(request):
         return None
 
 
+def get_empresas_pessoa(pessoa, request=None):
+    """Retorna as empresas que a pessoa pode ver no financeiro.
+    Só empresas onde é gestor/sócio. Respeita filtro global da empresa ativa."""
+    if pessoa.empresas_gestor.exists():
+        base = pessoa.empresas_gestor.filter(ativo=True)
+    elif pessoa.eh_gestor:
+        base = pessoa.empresas.filter(ativo=True)
+    else:
+        return pessoa.empresas.none()
+
+    # Filtro global por empresa ativa
+    if request:
+        empresa_ativa_id = request.session.get('empresa_ativa_id')
+        if empresa_ativa_id:
+            filtrada = base.filter(id=empresa_ativa_id)
+            if filtrada.exists():
+                return filtrada
+    return base
+
+
 @login_required
 def dashboard_financeiro(request):
     pessoa = get_pessoa_or_redirect(request)
@@ -28,7 +48,7 @@ def dashboard_financeiro(request):
         return redirect('dashboard')
 
     hoje = timezone.localdate()
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa')
 
     if empresa_id:
@@ -87,7 +107,7 @@ def lancar(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa') or request.POST.get('empresa')
     empresa = None
     categorias = []
@@ -158,7 +178,7 @@ def lista_lancamentos(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa')
     mes = request.GET.get('mes')
     ano = request.GET.get('ano')
@@ -244,7 +264,7 @@ def gerenciar_metas(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
 
     if request.method == 'POST':
@@ -279,7 +299,7 @@ def gerenciar_categorias(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
 
     if request.method == 'POST':
         empresa_id = request.POST.get('empresa') or None
@@ -322,7 +342,7 @@ def config_mercadopago(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
 
     if request.method == 'POST':
         empresa = get_object_or_404(Empresa, id=request.POST.get('empresa'))
@@ -401,7 +421,7 @@ def contas_bancarias(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
 
     if request.method == 'POST':
         empresa = get_object_or_404(Empresa, id=request.POST.get('empresa'))
@@ -579,7 +599,7 @@ def relatorio_financeiro(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
     empresa_id = request.GET.get('empresa')
     mes = int(request.GET.get('mes', hoje.month))
@@ -741,7 +761,7 @@ def contas_pagar(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
     empresa_id = request.GET.get('empresa')
 
@@ -925,6 +945,9 @@ def pagar_conta(request, item_id):
     item.lancamento = lancamento
     item.save()
 
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'ok', 'message': f'Conta "{item.conta_pagar.descricao}" paga - R$ {valor_pago:,.2f}'})
+
     messages.success(request, f'Conta "{item.conta_pagar.descricao}" paga - Lançamento de R$ {valor_pago:,.2f} criado.')
     return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
 
@@ -940,16 +963,23 @@ def dispensar_conta(request, item_id):
     item = get_object_or_404(ContaPagarItem, id=item_id)
 
     if item.pago:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Conta já paga'}, status=400)
         messages.warning(request, 'Esta conta já foi paga.')
         return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
 
     if item.dispensado:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Conta já dispensada'}, status=400)
         messages.warning(request, 'Esta conta já foi dispensada.')
         return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
 
     item.dispensado = True
     item.dispensado_em = timezone.now()
     item.save()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'ok', 'message': f'Conta "{item.conta_pagar.descricao}" dispensada.'})
 
     messages.success(request, f'Conta "{item.conta_pagar.descricao}" dispensada (sem lançamento).')
     return redirect(request.META.get('HTTP_REFERER', 'contas_pagar'))
@@ -966,7 +996,7 @@ def contas_receber(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
     empresa_id = request.GET.get('empresa')
 
@@ -1040,7 +1070,7 @@ def contas_receber(request):
 
         conta = ContaReceber.objects.create(
             empresa=empresa,
-            cliente_id=cliente_id,
+            cliente_empresa_id=cliente_id,
             projeto_id=projeto_id,
             descricao=descricao,
             valor=valor,
@@ -1089,7 +1119,8 @@ def contas_receber(request):
     ).order_by('ordem', 'nome')
 
     contas_bancarias = ContaBancaria.objects.filter(empresa=empresa, ativo=True)
-    clientes = Pessoa.objects.filter(empresas=empresa)
+    from core.models import Cliente as ClienteModel
+    clientes = ClienteModel.objects.filter(empresa=empresa, ativo=True)
     projetos = Projeto.objects.filter(empresa=empresa, status__in=['em_andamento', 'planejamento'])
 
     context = {
@@ -1215,7 +1246,7 @@ def fluxo_caixa(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
     empresa_id = request.GET.get('empresa')
     meses_frente = int(request.GET.get('meses', 3))  # Padrao: 3 meses
@@ -1308,7 +1339,7 @@ def dre_simplificado(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     hoje = timezone.localdate()
     empresa_id = request.GET.get('empresa')
     mes = int(request.GET.get('mes', hoje.month))
@@ -1435,7 +1466,7 @@ def alertas_financeiros(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa')
 
     if empresa_id:
@@ -1608,7 +1639,7 @@ def relatorio_projeto(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa')
     projeto_id = request.GET.get('projeto')
 
@@ -1711,7 +1742,7 @@ def comparativo_mensal(request):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = Empresa.objects.all()
+    empresas = get_empresas_pessoa(pessoa, request)
     empresa_id = request.GET.get('empresa')
     meses_comparar = int(request.GET.get('meses', 6))  # Padrao: 6 meses
 

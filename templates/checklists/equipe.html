@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}Equipe - NeuraxoCore{% endblock %}
+
+{% block content %}
+<div x-data="{ showConvite: false, editId: null }" x-cloak>
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Equipe</h1>
+            <p class="text-gray-600 dark:text-gray-400">{{ total_membros }} membro{{ total_membros|pluralize }}</p>
+        </div>
+        <button @click="showConvite = true" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+            </svg>
+            <span>Convidar</span>
+        </button>
+    </div>
+
+    <!-- Lista de Membros -->
+    <div class="grid gap-4">
+        {% for m in membros %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold text-lg">
+                        {{ m.pessoa.nome|first }}
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-800 dark:text-white">{{ m.pessoa.nome }}</h3>
+                        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            {% if m.email %}<span>{{ m.email }}</span>{% endif %}
+                            {% if m.pessoa.cargo %}<span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">{{ m.pessoa.cargo.nome }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if m.pessoa.id != pessoa.id %}
+                    <button @click="editId = editId === {{ m.pessoa.id }} ? null : {{ m.pessoa.id }}"
+                            class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-gray-700 rounded-lg transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Empresas e papéis -->
+            <div class="flex flex-wrap gap-2 mt-3">
+                {% for e in m.empresas %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium {% if e.papel == 'gestor' %}bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300{% elif e.papel == 'colaborador' %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300{% else %}bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400{% endif %}">
+                    <span class="w-1.5 h-1.5 rounded-full {% if e.papel == 'gestor' %}bg-blue-500{% elif e.papel == 'colaborador' %}bg-green-500{% else %}bg-gray-400{% endif %}"></span>
+                    {{ e.empresa.nome }}
+                    <span class="opacity-60">{% if e.papel == 'gestor' %}G{% elif e.papel == 'colaborador' %}C{% else %}E{% endif %}</span>
+                </span>
+                {% endfor %}
+            </div>
+
+            <!-- Formulário de edição (inline) -->
+            {% if m.pessoa.id != pessoa.id %}
+            <div x-show="editId === {{ m.pessoa.id }}" x-transition class="mt-4 pt-4 border-t dark:border-gray-700">
+                <form method="post" action="{% url 'editar_membro' m.pessoa.id %}">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+                        {% for emp in empresas %}
+                        <div class="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ emp.nome }}</span>
+                            <select name="papel_{{ emp.id }}" class="text-xs border rounded px-2 py-1 bg-white dark:bg-gray-600 dark:text-gray-200">
+                                {% for e in m.empresas %}{% if e.empresa.id == emp.id %}
+                                <option value="gestor" {% if e.papel == 'gestor' %}selected{% endif %}>Gestor</option>
+                                <option value="colaborador" {% if e.papel == 'colaborador' %}selected{% endif %}>Colaborador</option>
+                                <option value="executante" {% if e.papel == 'executante' %}selected{% endif %}>Executante</option>
+                                <option value="remover">Remover</option>
+                                {% endif %}{% endfor %}
+                                {% with has_emp=False %}
+                                {% for e in m.empresas %}{% if e.empresa.id == emp.id %}{% with has_emp=True %}{% endwith %}{% endif %}{% endfor %}
+                                {% if not has_emp %}
+                                <option value="" selected>Sem acesso</option>
+                                <option value="gestor">Gestor</option>
+                                <option value="colaborador">Colaborador</option>
+                                <option value="executante">Executante</option>
+                                {% endif %}
+                                {% endwith %}
+                            </select>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button type="button" @click="editId = null" class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
+                        <button type="submit" class="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">Salvar</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Modal Convidar -->
+    <div x-show="showConvite" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition>
+        <div class="fixed inset-0 bg-black/50" @click="showConvite = false"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg relative z-10 p-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Convidar Membro</h3>
+            <form method="post" action="{% url 'convidar_membro' %}">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome *</label>
+                        <input type="text" name="nome" required class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">E-mail *</label>
+                        <input type="email" name="email" required placeholder="nome@email.com" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Papel</label>
+                        <select name="papel" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <option value="executante">Executante (so ve as tarefas dele)</option>
+                            <option value="colaborador">Colaborador (ve tarefas de todos)</option>
+                            <option value="gestor">Gestor / Socio (acesso total)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresas *</label>
+                        <div class="space-y-2 max-h-40 overflow-y-auto">
+                            {% for emp in empresas %}
+                            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                <input type="checkbox" name="empresas" value="{{ emp.id }}" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                {{ emp.nome }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="showConvite = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Convidar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

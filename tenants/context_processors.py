@@ -1,60 +1,64 @@
-def tenant_context(request):
+def empresa_context(request):
     """
-    Adiciona informações do tenant atual ao contexto de todos os templates.
-    Usa django-tenants para obter o tenant atual da conexão.
-    Inclui lista de tenants disponíveis para o usuário (acesso compartilhado).
+    Adiciona informações das empresas do usuário ao contexto de todos os templates.
+    Inclui o papel (gestor/funcionário) por empresa.
     """
-    from django.db import connection
-
-    tenant_nome = None
-    tenant_slug = None
-    tenants_disponiveis = []
+    empresas_usuario = []
+    empresa_ativa = None
+    is_gestor_ativa = False
 
     try:
-        # Obter o tenant da conexão atual (definido pelo TenantMainMiddleware)
-        tenant = getattr(connection, 'tenant', None)
-
-        if tenant and tenant.schema_name != 'public':
-            tenant_nome = tenant.nome
-            tenant_slug = tenant.schema_name
-
-        # Carregar tenants disponíveis para o usuário (acesso compartilhado)
         if hasattr(request, 'user') and request.user.is_authenticated:
-            from .models import AcessoCompartilhado, Domain
+            from core.models import Pessoa
 
-            # Tenant "casa" do usuário (onde tem Pessoa nativa)
-            # + Tenants com acesso compartilhado
-            acessos = AcessoCompartilhado.objects.filter(
-                user=request.user,
-                ativo=True,
-            ).select_related('tenant_destino')
-
-            for acesso in acessos:
-                t = acesso.tenant_destino
-                if not t.ativo or t.schema_name == 'public':
-                    continue
-                # Pegar domínio primário do tenant
-                domain = Domain.objects.filter(
-                    tenant=t, is_primary=True
-                ).first()
-                if not domain:
-                    domain = Domain.objects.filter(tenant=t).first()
-                if domain:
-                    # Marcar se é o tenant atual
-                    is_atual = (tenant and t.schema_name == tenant.schema_name)
-                    tenants_disponiveis.append({
-                        'nome': t.nome,
-                        'slug': t.schema_name,
-                        'domain': domain.domain,
-                        'is_atual': is_atual,
-                        'is_gestor': acesso.is_gestor,
+            pessoa = Pessoa.objects.filter(user=request.user, ativo=True).first()
+            if pessoa:
+                todas_empresas = list(
+                    pessoa.empresas.filter(ativo=True).order_by('nome')
+                )
+                for emp in todas_empresas:
+                    papel = pessoa.get_papel_empresa(emp)
+                    empresas_usuario.append({
+                        'obj': emp,
+                        'id': emp.id,
+                        'nome': emp.nome,
+                        'cor': emp.cor,
+                        'papel': papel,
+                        'is_gestor': papel == 'gestor',
                     })
+
+                # Empresa ativa na sessão (None = todas)
+                empresa_ativa_id = request.session.get('empresa_ativa_id')
+                if empresa_ativa_id:
+                    empresa_ativa = next(
+                        (e for e in empresas_usuario if e['id'] == empresa_ativa_id),
+                        None
+                    )
+
+                if empresa_ativa:
+                    is_gestor_ativa = empresa_ativa['is_gestor']
 
     except Exception:
         pass
 
+    # Contagem de notificações
+    notif_count = 0
+    try:
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            from core.models import Pessoa
+            p = Pessoa.objects.filter(user=request.user, ativo=True).first()
+            if p:
+                notif_count = p.notificacoes_inapp.filter(lida=False).count()
+    except Exception:
+        pass
+
+    # Verificar se é gestor em alguma empresa
+    is_gestor_alguma = is_gestor_ativa or any(e.get('is_gestor') for e in empresas_usuario)
+
     return {
-        'tenant_nome': tenant_nome,
-        'tenant_slug': tenant_slug,
-        'tenants_disponiveis': tenants_disponiveis,
+        'empresas_usuario': empresas_usuario,
+        'empresa_ativa': empresa_ativa,
+        'is_gestor_ativa': is_gestor_ativa,
+        'is_gestor_alguma': is_gestor_alguma,
+        'notif_count': notif_count,
     }

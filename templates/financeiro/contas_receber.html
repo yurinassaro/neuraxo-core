@@ -226,7 +226,9 @@
                     <div class="flex-1">
                         <div class="flex items-center gap-2">
                             <h3 class="font-semibold text-gray-800">{{ conta.descricao }}</h3>
-                            {% if conta.cliente %}
+                            {% if conta.cliente_empresa %}
+                            <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{{ conta.cliente_empresa.nome }}</span>
+                            {% elif conta.cliente %}
                             <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{{ conta.cliente.nome }}</span>
                             {% endif %}
                             {% if conta.projeto %}

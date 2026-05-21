@@ -51,7 +51,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     <span>Mapa</span>
                 </a>
-                {% if pessoa.is_gestor %}
+                {% if pessoa.eh_gestor %}
                 <select id="status-select" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if projeto.status == value %}selected{% endif %}>{{ label }}</option>
@@ -81,7 +81,7 @@
 <div class="bg-white rounded-xl shadow mb-6">
     <div class="p-4 border-b flex justify-between items-center">
         <h2 class="text-lg font-semibold">Equipe</h2>
-        {% if pessoa.is_gestor %}
+        {% if pessoa.eh_gestor %}
         <button onclick="document.getElementById('modal-participantes').classList.remove('hidden')" class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200">Gerenciar</button>
         {% endif %}
     </div>
@@ -113,7 +113,7 @@
     </div>
 </div>
 
-{% if pessoa.is_gestor %}
+{% if pessoa.eh_gestor %}
 <!-- Modal Gerenciar Participantes -->
 <div id="modal-participantes" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
@@ -163,7 +163,7 @@
 <div class="bg-white rounded-xl shadow">
     <div class="p-4 border-b flex justify-between items-center">
         <h2 class="text-lg font-semibold">Etapas do Projeto</h2>
-        {% if pessoa.is_gestor %}
+        {% if pessoa.eh_gestor %}
         <a href="{% url 'adicionar_etapa_projeto' projeto.id %}" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 flex items-center space-x-1">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
             <span>Adicionar Etapa</span>
@@ -229,7 +229,7 @@
                     <a href="{% url 'detalhe_demanda' etapa.id %}" class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200">
                         Abrir
                     </a>
-                    {% if pessoa.is_gestor or user.is_staff %}
+                    {% if pessoa.eh_gestor or user.is_staff %}
                     <form method="post" action="{% url 'excluir_etapa_projeto' etapa.id %}" onsubmit="return confirm('Tem certeza que deseja excluir a etapa &quot;{{ etapa.titulo }}&quot;?');">
                         {% csrf_token %}
                         <button type="submit" class="px-2 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200" title="Excluir etapa">
@@ -248,7 +248,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
         </svg>
         <p class="text-gray-500 mb-4">Nenhuma etapa adicionada</p>
-        {% if pessoa.is_gestor %}
+        {% if pessoa.eh_gestor %}
         <a href="{% url 'adicionar_etapa_projeto' projeto.id %}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Adicionar primeira etapa</a>
         {% endif %}
     </div>
@@ -305,7 +305,7 @@
                     <a href="{% url 'detalhe_demanda' etapa.id %}" class="px-3 py-1 bg-gray-100 text-gray-500 text-sm rounded hover:bg-gray-200">
                         Ver
                     </a>
-                    {% if pessoa.is_gestor or user.is_staff %}
+                    {% if pessoa.eh_gestor or user.is_staff %}
                     <form method="post" action="{% url 'excluir_etapa_projeto' etapa.id %}" onsubmit="return confirm('Tem certeza que deseja excluir a etapa &quot;{{ etapa.titulo }}&quot;?');">
                         {% csrf_token %}
                         <button type="submit" class="px-2 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200" title="Excluir etapa">
@@ -321,7 +321,7 @@
 </div>
 {% endif %}
 
-{% if pessoa.is_gestor %}
+{% if pessoa.eh_gestor %}
 <script>
 const csrfToken = '{{ csrf_token }}';
 document.getElementById('status-select').addEventListener('change', function() {

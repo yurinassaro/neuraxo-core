@@ -1,5 +1,5 @@
 """
-Django settings for NeuraxoCore - Sistema de Checklist (Multi-Tenant)
+Django settings for NeuraxoCore - Sistema de Gestão de Rotinas e Projetos
 """
 
 from pathlib import Path
@@ -16,20 +16,14 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.localhost').split(',')
 
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost').split(',')
+_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost').split(',')
+_csrf.append('https://core.neuraxo.com.br')
+CSRF_TRUSTED_ORIGINS = list(set(_csrf))
 
 # Proxy headers
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# ============================================
-# MULTI-TENANCY (django-tenants)
-# ============================================
-TENANT_MODEL = 'tenants.Client'
-TENANT_DOMAIN_MODEL = 'tenants.Domain'
-
-# Apps compartilhados (schema public) - dados globais
-SHARED_APPS = [
-    'django_tenants',
+INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -38,26 +32,16 @@ SHARED_APPS = [
     'django.contrib.staticfiles',
     # Third party
     'rest_framework',
-    # Tenants app (models ficam no public)
+    # Local apps
     'tenants',
-]
-
-# Apps por tenant (cada schema tem suas próprias tabelas)
-TENANT_APPS = [
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    # Local apps - dados isolados por tenant
     'core',
     'checklists',
     'notifications',
     'financeiro',
+    'jarvis',
 ]
 
-# INSTALLED_APPS = SHARED_APPS + apps que só existem em TENANT_APPS
-INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
-
 MIDDLEWARE = [
-    'django_tenants.middleware.main.TenantMainMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -66,12 +50,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'tenants.middleware.AcessoCompartilhadoMiddleware',
     'core.middleware.FriendlyErrorMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
-PUBLIC_SCHEMA_URLCONF = 'config.urls_public'
 
 TEMPLATES = [
     {
@@ -83,7 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'tenants.context_processors.tenant_context',
+                'tenants.context_processors.empresa_context',
             ],
         },
     },
@@ -91,10 +73,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database - MUST use postgresql with django-tenants
+# Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME', 'neuraxo'),
         'USER': os.getenv('DB_USER', 'neuraxo'),
         'PASSWORD': os.getenv('DB_PASSWORD', ''),
@@ -102,8 +84,6 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
-
-DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -128,15 +108,19 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Upload limits
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Auth
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
-
-# Sessão compartilhada entre subdomínios (para troca de tenant sem relogin)
-SESSION_COOKIE_DOMAIN = os.getenv('SESSION_COOKIE_DOMAIN', None)  # Ex: .core.neuraxo.com.br
+AUTHENTICATION_BACKENDS = [
+    'core.auth_backends.EmailBackend',
+]
 
 # Celery
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')

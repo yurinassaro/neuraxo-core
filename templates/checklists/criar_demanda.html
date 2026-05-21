@@ -137,13 +137,27 @@ function loadPessoas(empresaId, selectPessoa = null) {
         });
 }
 
+const projetoSelect = document.getElementById('projeto');
+const projetoOptions = Array.from(projetoSelect.options);
+
+function filterProjetos(empresaId) {
+    projetoSelect.innerHTML = '';
+    projetoOptions.forEach(opt => {
+        if (!opt.value || opt.dataset.empresa === empresaId) {
+            projetoSelect.appendChild(opt.cloneNode(true));
+        }
+    });
+}
+
 empresaSelect.addEventListener('change', function() {
     loadPessoas(this.value);
+    filterProjetos(this.value);
 });
 
-// Se há empresa pré-selecionada, carregar pessoas
+// Se há empresa pré-selecionada, carregar pessoas e filtrar projetos
 if (empresaSelect.value) {
     loadPessoas(empresaSelect.value, responsavelPreselect);
+    filterProjetos(empresaSelect.value);
 }
 </script>
 {% endblock %}

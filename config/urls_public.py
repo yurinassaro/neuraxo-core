@@ -6,6 +6,7 @@ from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render, redirect
 from tenants.views import api_empresas_tenant
+from core.admin_views import schema_view
 
 
 def landing(request):
@@ -19,6 +20,7 @@ def login_redirect(request):
 
 
 urlpatterns = [
+    path('admin/schema/', schema_view, name='admin_schema'),
     path('admin/', admin.site.urls),
     path('api/tenant/<int:tenant_id>/empresas/', api_empresas_tenant, name='api_empresas_tenant'),
     path('login/', login_redirect, name='login'),

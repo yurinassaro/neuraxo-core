@@ -8,14 +8,12 @@
         <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Pendencias</h1>
         <p class="text-gray-600 dark:text-gray-400">{{ total_demandas }} pendente(s) | {{ total_concluidas }} concluida(s)</p>
     </div>
-    {% if pessoa.is_gestor %}
     <a href="{% url 'criar_demanda' %}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center space-x-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
         </svg>
         <span>Nova Demanda</span>
     </a>
-    {% endif %}
 </div>
 
 <!-- Abas -->
@@ -26,6 +24,22 @@
             Pendencias
             <span class="ml-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-xs px-2 py-0.5 rounded-full">{{ total_demandas }}</span>
         </button>
+        <button type="button" id="tab-projetos" onclick="showTab('projetos')"
+            class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+            Projetos
+            {% if total_projetos %}
+            <span class="ml-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs px-2 py-0.5 rounded-full">{{ total_projetos }}</span>
+            {% endif %}
+        </button>
+        {% if pessoa.eh_gestor %}
+        <button type="button" id="tab-pagamentos" onclick="showTab('pagamentos')"
+            class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+            Pagamentos
+            {% if total_pagamentos %}
+            <span class="ml-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs px-2 py-0.5 rounded-full">{{ total_pagamentos }}</span>
+            {% endif %}
+        </button>
+        {% endif %}
         <button type="button" id="tab-concluidos" onclick="showTab('concluidos')"
             class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
             Concluidos
@@ -70,14 +84,15 @@
 
     <!-- Demandas por Empresa -->
     {% for empresa_nome, dados in demandas_por_empresa.items %}
-    <div class="mb-8">
-        <div class="flex items-center space-x-2 mb-4">
+    <div class="mb-8" x-data="{ open: false }">
+        <button @click="open = !open" class="flex items-center space-x-2 mb-4 w-full text-left group">
+            <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             <div class="w-4 h-4 rounded" style="background-color: {{ dados.empresa.cor }};"></div>
-            <h2 class="text-xl font-semibold text-gray-800 dark:text-white">{{ empresa_nome }}</h2>
+            <h2 class="text-xl font-semibold text-gray-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{{ empresa_nome }}</h2>
             <span class="text-sm text-gray-500 dark:text-gray-400">({{ dados.demandas|length }})</span>
-        </div>
+        </button>
 
-        <div class="space-y-3">
+        <div x-show="open" x-transition class="space-y-3">
             {% for demanda in dados.demandas %}
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 {% if demanda.get_status_prazo == 'atrasado' %}border-red-500{% elif demanda.get_status_prazo == 'urgente' %}border-orange-500{% elif demanda.get_status_prazo == 'proximo' %}border-yellow-500{% elif demanda.status == 'concluido' %}border-green-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
                 <div class="flex justify-between items-start">
@@ -145,7 +160,7 @@
                            class="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 text-center">
                             Abrir
                         </a>
-                        {% if pessoa.is_gestor or user.is_staff %}
+                        {% if pessoa.eh_gestor or user.is_staff %}
                         <form action="{% url 'excluir_demanda' demanda.id %}" method="post"
                               onsubmit="return confirm('Excluir permanentemente a demanda &quot;{{ demanda.titulo|escapejs }}&quot;?');">
                             {% csrf_token %}
@@ -163,12 +178,134 @@
     {% empty %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
         <p>Nenhuma demanda pendente encontrada.</p>
-        {% if pessoa.is_gestor %}
+        {% if pessoa.eh_gestor %}
         <a href="{% url 'criar_demanda' %}" class="text-indigo-600 dark:text-indigo-400 hover:underline mt-2 inline-block">Criar nova demanda</a>
         {% endif %}
     </div>
     {% endfor %}
 </div>
+
+<!-- Aba Projetos -->
+<div id="content-projetos" class="tab-content hidden">
+    {% if projetos_dados %}
+    <div class="space-y-6">
+        {% for p in projetos_dados %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow" x-data="{ open: false }">
+            <button @click="open = !open" class="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
+                <div class="flex items-center space-x-3">
+                    <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <div class="w-3 h-3 rounded" style="background-color: {{ p.projeto.cor }};"></div>
+                    <span class="font-semibold text-gray-800 dark:text-white">{{ p.projeto.titulo }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ p.projeto.empresa.nome }}</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    {% if p.atrasadas > 0 %}
+                    <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full">{{ p.atrasadas }} atrasada{{ p.atrasadas|pluralize }}</span>
+                    {% endif %}
+                    <span class="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded-full">{{ p.total }} pendente{{ p.total|pluralize }}</span>
+                </div>
+            </button>
+            <div x-show="open" x-transition class="border-t dark:border-gray-700 p-4 space-y-2">
+                {% for d in p.demandas %}
+                <div class="flex items-center justify-between py-2 px-3 rounded hover:bg-gray-50 dark:hover:bg-gray-700 border-l-4 {% if d.get_status_prazo == 'atrasado' %}border-red-500{% elif d.get_status_prazo == 'urgente' %}border-orange-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm font-medium text-gray-800 dark:text-white">{{ d.titulo }}</span>
+                            {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                            <span class="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded">{{ d.get_prioridade_display }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5">
+                            {% if d.prazo %}Prazo: {{ d.prazo|date:"d/m/Y" }}{% endif %}
+                            {% if d.responsavel %} | {{ d.responsavel.nome }}{% endif %}
+                            {% if d.etapa_label %} | {{ d.etapa_label }}{% endif %}
+                        </div>
+                    </div>
+                    <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded hover:bg-indigo-200">Abrir</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+        <p>Nenhum projeto com pendencias.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if pessoa.eh_gestor %}
+<!-- Aba Pagamentos -->
+<div id="content-pagamentos" class="tab-content hidden">
+
+    {% if pagamentos_vencidos %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            Vencidos ({{ pagamentos_vencidos|length }})
+        </h2>
+        <div class="space-y-2">
+            {% for item in pagamentos_vencidos %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-red-500 flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="w-3 h-3 rounded" style="background-color: {{ item.conta_pagar.empresa.cor }};"></div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ item.conta_pagar.empresa.nome }}</span>
+                    </div>
+                    <p class="font-medium text-gray-800 dark:text-white truncate">{{ item.conta_pagar.descricao }}{% if item.parcela_numero and item.conta_pagar.total_parcelas > 1 %} ({{ item.parcela_numero }}/{{ item.conta_pagar.total_parcelas }}){% endif %}</p>
+                    <p class="text-xs text-red-600 dark:text-red-400">Venceu em {{ item.data_vencimento|date:"d/m/Y" }}</p>
+                </div>
+                <div class="flex items-center gap-3 ml-4">
+                    <p class="font-semibold text-red-600 dark:text-red-400">R$ {{ item.valor|floatformat:2 }}</p>
+                    <button type="button" onclick="pagarConta({{ item.id }}, this)"
+                            class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">
+                        Pagar
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if pagamentos_a_vencer %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold text-yellow-600 dark:text-yellow-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            A Vencer ({{ pagamentos_a_vencer|length }})
+        </h2>
+        <div class="space-y-2">
+            {% for item in pagamentos_a_vencer %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-yellow-500 flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="w-3 h-3 rounded" style="background-color: {{ item.conta_pagar.empresa.cor }};"></div>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ item.conta_pagar.empresa.nome }}</span>
+                    </div>
+                    <p class="font-medium text-gray-800 dark:text-white truncate">{{ item.conta_pagar.descricao }}{% if item.parcela_numero and item.conta_pagar.total_parcelas > 1 %} ({{ item.parcela_numero }}/{{ item.conta_pagar.total_parcelas }}){% endif %}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Vence em {{ item.data_vencimento|date:"d/m/Y" }}</p>
+                </div>
+                <div class="flex items-center gap-3 ml-4">
+                    <p class="font-semibold text-gray-800 dark:text-white">R$ {{ item.valor|floatformat:2 }}</p>
+                    <button type="button" onclick="pagarConta({{ item.id }}, this)"
+                            class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700">
+                        Pagar
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not pagamentos_vencidos and not pagamentos_a_vencer %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+        <p>Nenhum pagamento pendente.</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- Aba Concluidos -->
 <div id="content-concluidos" class="tab-content hidden">
@@ -342,10 +479,43 @@ function showTab(tab) {
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
-    if (tab === 'concluidos') {
-        showTab('concluidos');
+    if (tab === 'concluidos' || tab === 'projetos' || tab === 'pagamentos') {
+        showTab(tab);
     }
 });
+
+function pagarConta(itemId, btn) {
+    const valor = prompt('Valor pago (deixe em branco para usar o valor previsto):');
+    if (valor === null) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    if (valor.trim()) fd.append('valor_real', valor.trim());
+    fetch(`/financeiro/contas-pagar/pagar/${itemId}/`, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const card = btn.closest('.bg-white, .dark\\:bg-gray-800');
+            card.style.transition = 'opacity 0.3s';
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 300);
+        } else {
+            alert('Erro ao pagar conta');
+            btn.disabled = false;
+            btn.textContent = 'Pagar';
+        }
+    })
+    .catch(() => {
+        alert('Erro de conexão');
+        btn.disabled = false;
+        btn.textContent = 'Pagar';
+    });
+}
 
 // Load More Cards
 let cardsShown = 10;

@@ -5,6 +5,7 @@ Acessado quando nao ha tenant (ex: core.neuraxo.com.br sem subdomain).
 from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render
+from core.admin_views import schema_view
 
 
 def landing(request):
@@ -13,6 +14,7 @@ def landing(request):
 
 
 urlpatterns = [
+    path('admin/schema/', schema_view, name='admin_schema'),
     path('admin/', admin.site.urls),
     path('', landing, name='landing'),
 ]

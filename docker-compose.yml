@@ -39,6 +39,7 @@ services:
       - WAPI_URL=${WAPI_URL:-}
       - WAPI_TOKEN=${WAPI_TOKEN:-}
       - WAPI_INSTANCE=${WAPI_INSTANCE:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

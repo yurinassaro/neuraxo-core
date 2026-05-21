@@ -10,9 +10,10 @@
             <p class="text-gray-600">{{ hoje|date:"d/m/Y" }} - {{ pessoa.nome }}</p>
         </div>
         <div class="text-right">
-            {% if pessoa.is_gestor %}
-            <a href="{% url 'lista_rotinas' %}" class="text-xs text-indigo-500 hover:underline mb-1 inline-block">Gerenciar Rotinas</a>
-            {% endif %}
+            <a href="{% url 'lista_rotinas' %}" class="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg mb-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Gerencie suas rotinas
+            </a>
             <div class="text-3xl font-bold text-indigo-600">{{ progresso }}%</div>
             <div class="text-sm text-gray-500">{{ concluidas }}/{{ total }} tarefas</div>
             {% if em_standby > 0 %}
@@ -27,22 +28,6 @@
     </div>
 </div>
 
-<!-- Abas: Rotina | Projetos -->
-<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
-    <nav class="flex space-x-4" aria-label="Tabs">
-        <button type="button" id="tab-rotina" onclick="showTabRotina('rotina')"
-            class="tab-rotina-btn px-4 py-2 text-sm font-medium border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400">
-            Rotina
-        </button>
-        <button type="button" id="tab-projetos" onclick="showTabRotina('projetos')"
-            class="tab-rotina-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-            Projetos
-            {% if total_projeto %}
-            <span class="ml-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs px-2 py-0.5 rounded-full">{{ total_projeto }}</span>
-            {% endif %}
-        </button>
-    </nav>
-</div>
 
 <!-- ===================== ABA ROTINA ===================== -->
 <div id="content-rotina" class="tab-rotina-content">
@@ -68,8 +53,8 @@
     </form>
 </div>
 
-<!-- URGÊNCIAS - Demandas Atrasadas -->
-{% if atrasadas %}
+<!-- Demandas removidas da rotina - ver em Pendências -->
+{% if False and atrasadas %}
 <div class="mb-6" x-data="{ aberto: true }">
     <button @click="aberto = !aberto"
             class="w-full flex items-center justify-between p-4 bg-red-100 rounded-lg border-2 border-red-400 hover:bg-red-200 transition-colors animate-pulse-slow">
@@ -168,8 +153,7 @@
 </div>
 {% endif %}
 
-<!-- URGÊNCIAS VENCENDO HOJE -->
-{% if urgencias_hoje %}
+{% if False and urgencias_hoje %}
 <div class="mb-6" x-data="{ aberto: true }">
     <button @click="aberto = !aberto"
             class="w-full flex items-center justify-between p-4 bg-amber-100 rounded-lg border-2 border-amber-400 hover:bg-amber-200 transition-colors">
@@ -222,8 +206,7 @@
 </div>
 {% endif %}
 
-<!-- VENCENDO AMANHÃ -->
-{% if vencendo_amanha %}
+{% if False and vencendo_amanha %}
 <div class="mb-6" x-data="{ aberto: true }">
     <button @click="aberto = !aberto"
             class="w-full flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-300 hover:bg-blue-100 transition-colors">
@@ -275,8 +258,7 @@
 </div>
 {% endif %}
 
-<!-- CONTAS A PAGAR ATRASADAS -->
-{% if contas_pagar_atrasadas %}
+{% if False and contas_pagar_atrasadas %}
 <div class="mb-6" x-data="{ aberto: true }">
     <button @click="aberto = !aberto"
             class="w-full flex items-center justify-between p-4 bg-red-50 rounded-lg border-2 border-red-400 hover:bg-red-100 transition-colors">
@@ -322,21 +304,20 @@
                 <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4" @click.stop>
                     <h3 class="text-lg font-bold text-gray-800 mb-1">{{ item.conta_pagar.descricao }}</h3>
                     <p class="text-sm text-gray-500 mb-4">Venc.: {{ item.data_vencimento|date:"d/m/Y" }}{% if item.conta_pagar.valor_estimado %} <span class="text-yellow-600">(valor estimado)</span>{% endif %}</p>
-                    <form action="{% url 'pagar_conta' item.id %}" method="post" class="mb-3">
-                        {% csrf_token %}
+                    <div class="mb-3">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Valor real (R$)</label>
-                        <input type="text" name="valor_real" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
-                        <button type="submit" class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                        <input type="text" id="valor-real-{{ item.id }}" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
+                        <button onclick="pagarConta(this, '{% url 'pagar_conta' item.id %}', {{ item.id }})"
+                                class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
                             Pagar e criar lançamento
                         </button>
-                    </form>
-                    <form action="{% url 'dispensar_conta' item.id %}" method="post" class="mb-3">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold"
-                                onclick="return confirm('Dispensar esta conta sem criar lançamento?')">
+                    </div>
+                    <div class="mb-3">
+                        <button onclick="if(confirm('Dispensar esta conta sem criar lançamento?')) acaoConta(this, '{% url 'dispensar_conta' item.id %}')"
+                                class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold">
                             Não precisei pagar
                         </button>
-                    </form>
+                    </div>
                     <button @click="modalAberto = false" class="w-full px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancelar</button>
                 </div>
             </div>
@@ -392,21 +373,20 @@
                 <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4" @click.stop>
                     <h3 class="text-lg font-bold text-gray-800 mb-1">{{ item.conta_pagar.descricao }}</h3>
                     <p class="text-sm text-gray-500 mb-4">Venc.: {{ item.data_vencimento|date:"d/m/Y" }}{% if item.conta_pagar.valor_estimado %} <span class="text-yellow-600">(valor estimado)</span>{% endif %}</p>
-                    <form action="{% url 'pagar_conta' item.id %}" method="post" class="mb-3">
-                        {% csrf_token %}
+                    <div class="mb-3">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Valor real (R$)</label>
-                        <input type="text" name="valor_real" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
-                        <button type="submit" class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
+                        <input type="text" id="valor-real-{{ item.id }}" value="{{ item.valor|floatformat:2 }}" class="w-full px-3 py-2 border rounded-lg text-sm mb-3" placeholder="0,00">
+                        <button onclick="pagarConta(this, '{% url 'pagar_conta' item.id %}', {{ item.id }})"
+                                class="w-full px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold">
                             Pagar e criar lançamento
                         </button>
-                    </form>
-                    <form action="{% url 'dispensar_conta' item.id %}" method="post" class="mb-3">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold"
-                                onclick="return confirm('Dispensar esta conta sem criar lançamento?')">
+                    </div>
+                    <div class="mb-3">
+                        <button onclick="if(confirm('Dispensar esta conta sem criar lançamento?')) acaoConta(this, '{% url 'dispensar_conta' item.id %}')"
+                                class="w-full px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 font-semibold">
                             Não precisei pagar
                         </button>
-                    </form>
+                    </div>
                     <button @click="modalAberto = false" class="w-full px-4 py-2 text-gray-500 text-sm hover:text-gray-700">Cancelar</button>
                 </div>
             </div>
@@ -503,26 +483,21 @@
                     </a>
 
                     {% if item.status != 'concluido' %}
-                    <form action="{% url 'marcar_concluido' item.id %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
-                            Concluir
-                        </button>
-                    </form>
+                    <button onclick="acaoTarefa(this, '{% url 'marcar_concluido' item.id %}')"
+                            class="w-full px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
+                        Concluir
+                    </button>
                     <button onclick="abrirModalPausar({{ item.id }}, '{{ item.template.titulo|escapejs }}')"
                             class="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded hover:bg-orange-200 text-center">
                         Pausar
                     </button>
                     {% if item.cancelamento_solicitado %}
                     <span class="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs rounded text-center">Aguardando aprovação</span>
-                    {% elif pessoa.is_gestor %}
-                    <form action="{% url 'cancelar_tarefa' item.id %}" method="post"
-                          onsubmit="return confirm('Cancelar esta tarefa?')">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200">
-                            Cancelar
-                        </button>
-                    </form>
+                    {% elif pessoa.eh_gestor %}
+                    <button onclick="if(confirm('Cancelar esta tarefa?')) acaoTarefa(this, '{% url 'cancelar_tarefa' item.id %}')"
+                            class="w-full px-3 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200">
+                        Cancelar
+                    </button>
                     {% else %}
                     <button onclick="abrirModalCancelar({{ item.id }}, '{{ item.template.titulo|escapejs }}')"
                             class="w-full px-3 py-1 bg-red-50 text-red-500 text-sm rounded hover:bg-red-100">
@@ -530,14 +505,11 @@
                     </button>
                     {% endif %}
                     {% endif %}
-                    {% if pessoa.is_gestor or user.is_staff %}
-                    <form action="{% url 'excluir_tarefa' item.id %}" method="post"
-                          onsubmit="return confirm('Excluir permanentemente a tarefa &quot;{{ item.template.titulo|escapejs }}&quot;?');">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-                            Excluir
-                        </button>
-                    </form>
+                    {% if pessoa.eh_gestor or user.is_staff %}
+                    <button onclick="if(confirm('Excluir permanentemente?')) acaoTarefa(this, '{% url 'excluir_tarefa' item.id %}')"
+                            class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                        Excluir
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -651,40 +623,32 @@
                        class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded hover:bg-indigo-200 text-center">
                         Abrir
                     </a>
-                    <form action="{% url 'marcar_concluido' item.id %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
-                            Concluir
-                        </button>
-                    </form>
+                    <button onclick="acaoTarefa(this, '{% url 'marcar_concluido' item.id %}')"
+                            class="w-full px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600">
+                        Concluir
+                    </button>
                     <button onclick="abrirModalPausar({{ item.id }}, '{{ item.template.titulo|escapejs }}')"
                             class="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded hover:bg-orange-200 text-center">
                         Pausar
                     </button>
                     {% if item.cancelamento_solicitado %}
                     <span class="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs rounded text-center">Aguardando aprovação</span>
-                    {% elif pessoa.is_gestor %}
-                    <form action="{% url 'cancelar_tarefa' item.id %}" method="post"
-                          onsubmit="return confirm('Cancelar esta tarefa?')">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200">
-                            Cancelar
-                        </button>
-                    </form>
+                    {% elif pessoa.eh_gestor %}
+                    <button onclick="if(confirm('Cancelar esta tarefa?')) acaoTarefa(this, '{% url 'cancelar_tarefa' item.id %}')"
+                            class="w-full px-3 py-1 bg-red-100 text-red-600 text-sm rounded hover:bg-red-200">
+                        Cancelar
+                    </button>
                     {% else %}
                     <button onclick="abrirModalCancelar({{ item.id }}, '{{ item.template.titulo|escapejs }}')"
                             class="w-full px-3 py-1 bg-red-50 text-red-500 text-sm rounded hover:bg-red-100">
                         Solicitar Cancelamento
                     </button>
                     {% endif %}
-                    {% if pessoa.is_gestor or user.is_staff %}
-                    <form action="{% url 'excluir_tarefa' item.id %}" method="post"
-                          onsubmit="return confirm('Excluir permanentemente a tarefa &quot;{{ item.template.titulo|escapejs }}&quot;?');">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-                            Excluir
-                        </button>
-                    </form>
+                    {% if pessoa.eh_gestor or user.is_staff %}
+                    <button onclick="if(confirm('Excluir permanentemente?')) acaoTarefa(this, '{% url 'excluir_tarefa' item.id %}')"
+                            class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+                        Excluir
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -911,7 +875,7 @@
 {% endif %}
 
 <!-- Seção Canceladas (só gestor vê) -->
-{% if tarefas_canceladas and pessoa.is_gestor %}
+{% if tarefas_canceladas and pessoa.eh_gestor %}
 <div class="mt-8" x-data="{ aberto: false }">
     <button @click="aberto = !aberto"
             class="w-full flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200 hover:bg-red-100 transition-colors">
@@ -957,8 +921,8 @@
 
 </div><!-- Fim aba rotina -->
 
-<!-- ===================== ABA PROJETOS ===================== -->
-<div id="content-projetos" class="tab-rotina-content" style="display: none;">
+<!-- ABA PROJETOS movida para Pendências -->
+<div id="content-projetos" style="display: none;">
 
 {% if not atrasadas_projeto and not urgencias_hoje_projeto and not vencendo_amanha_projeto and not projeto_pendentes %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
@@ -1258,14 +1222,9 @@ function confirmarPausar() {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'ok') {
-            // Animar saída do card
+            fecharModalPausar();
             const card = document.getElementById(`tarefa-${tarefaPausarId}`);
-            if (card) {
-                card.style.transition = 'all 0.3s ease-out';
-                card.style.opacity = '0';
-                card.style.transform = 'translateX(-20px)';
-            }
-            setTimeout(() => location.reload(), 300);
+            if (card) animarRemover(card);
         }
     });
 }
@@ -1283,14 +1242,8 @@ function reativarTarefa(itemId) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'ok') {
-            // Animar saída do card
             const card = document.getElementById(`standby-${itemId}`);
-            if (card) {
-                card.style.transition = 'all 0.3s ease-out';
-                card.style.opacity = '0';
-                card.style.transform = 'translateX(20px)';
-            }
-            setTimeout(() => location.reload(), 300);
+            if (card) animarRemover(card);
         }
     });
 }
@@ -1326,17 +1279,149 @@ function fecharModalCancelar() {
 function enviarCancelamento() {
     const itemId = document.getElementById('cancelar-item-id').value;
     const motivo = document.getElementById('motivo-cancelamento').value;
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `/cancelar/${itemId}/`;
-    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    form.innerHTML = `<input type="hidden" name="csrfmiddlewaretoken" value="${csrf}"><input type="hidden" name="motivo" value="${motivo}">`;
-    document.body.appendChild(form);
-    form.submit();
+    const formData = new FormData();
+    formData.append('motivo', motivo);
+
+    fetch(`/cancelar/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            fecharModalCancelar();
+            const card = document.getElementById(`tarefa-${itemId}`);
+            if (card) animarRemover(card);
+        }
+    });
 }
 document.getElementById('modal-cancelar').addEventListener('click', function(e) {
     if (e.target === this) fecharModalCancelar();
 });
+
+// ========== AJAX ACTIONS (sem reload) ==========
+function animarRemover(el) {
+    el.style.transition = 'all 0.3s ease-out';
+    el.style.opacity = '0';
+    el.style.maxHeight = el.scrollHeight + 'px';
+    setTimeout(() => {
+        el.style.maxHeight = '0';
+        el.style.padding = '0';
+        el.style.margin = '0';
+        el.style.overflow = 'hidden';
+    }, 50);
+    setTimeout(() => el.remove(), 350);
+}
+
+function acaoTarefa(btn, url) {
+    btn.disabled = true;
+    btn.textContent = '...';
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            const card = btn.closest('[id^="tarefa-"]');
+            if (card) {
+                animarRemover(card);
+            } else {
+                // fallback: remover o card pai mais proximo
+                const wrapper = btn.closest('.bg-white, .dark\\:bg-gray-800, [class*="rounded-lg shadow"]');
+                if (wrapper) animarRemover(wrapper);
+            }
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Erro';
+            alert(data.error || 'Erro ao executar ação');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.textContent = 'Erro';
+    });
+}
+
+function fecharModalAlpine(el) {
+    // Fechar modal Alpine.js - funciona com Alpine v2 e v3
+    const xDataEl = el.closest('[x-data]');
+    if (!xDataEl) return;
+    if (xDataEl._x_dataStack) {
+        // Alpine v3
+        xDataEl._x_dataStack[0].modalAberto = false;
+    } else if (xDataEl.__x) {
+        // Alpine v2
+        xDataEl.__x.$data.modalAberto = false;
+    } else {
+        // Fallback: esconder o overlay diretamente
+        const overlay = xDataEl.querySelector('[x-show]');
+        if (overlay) overlay.style.display = 'none';
+    }
+}
+
+function pagarConta(btn, url, itemId) {
+    btn.disabled = true;
+    btn.textContent = 'Pagando...';
+    const valorInput = document.getElementById('valor-real-' + itemId);
+    const formData = new FormData();
+    if (valorInput) formData.append('valor_real', valorInput.value);
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            fecharModalAlpine(btn);
+            const card = btn.closest('[x-data]');
+            if (card) setTimeout(() => animarRemover(card), 200);
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Pagar e criar lançamento';
+            alert(data.error || 'Erro ao pagar');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.textContent = 'Pagar e criar lançamento';
+    });
+}
+
+function acaoConta(btn, url) {
+    btn.disabled = true;
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            fecharModalAlpine(btn);
+            const card = btn.closest('[x-data]');
+            if (card) setTimeout(() => animarRemover(card), 200);
+        } else {
+            btn.disabled = false;
+            alert(data.error || 'Erro');
+        }
+    })
+    .catch(() => { btn.disabled = false; });
+}
 
 // ========== ABAS ROTINA / PROJETOS ==========
 function showTabRotina(tab) {

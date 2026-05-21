@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}{{ pasta.nome }} - {{ cliente.nome }}{% endblock %}
+
+{% block content %}
+<div x-data="{
+    view: 'grid',
+    size: 'md',
+    lightbox: null,
+    filterType: 'todos',
+    showNovaPasta: false
+}">
+
+    <!-- Header + Breadcrumb -->
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+            <a href="{% url 'cliente_detalhe' cliente.id %}" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </a>
+            <svg class="w-7 h-7 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+            <div>
+                <!-- Breadcrumb -->
+                <div class="flex items-center gap-1 text-sm">
+                    <a href="{% url 'cliente_detalhe' cliente.id %}" class="text-gray-400 hover:text-indigo-600">{{ cliente.nome }}</a>
+                    {% for bc in breadcrumb %}
+                    <span class="text-gray-300">/</span>
+                    {% if forloop.last %}
+                    <span class="font-bold text-gray-800 dark:text-white">{{ bc.nome }}</span>
+                    {% else %}
+                    <a href="{% url 'pasta_detalhe_interno' bc.id %}" class="text-gray-400 hover:text-indigo-600">{{ bc.nome }}</a>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                <p class="text-xs text-gray-500">{{ arquivos|length }} arquivo{{ arquivos|length|pluralize }} | {{ pasta.get_tamanho_total }}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <!-- Nova subpasta -->
+            <button @click="showNovaPasta = true" class="px-3 py-1.5 text-xs text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50">+ Subpasta</button>
+            <!-- Tamanhos -->
+            <div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <button @click="size = 'sm'" :class="size === 'sm' ? 'bg-white dark:bg-gray-600 shadow' : ''" class="px-2 py-1 text-xs rounded">P</button>
+                <button @click="size = 'md'" :class="size === 'md' ? 'bg-white dark:bg-gray-600 shadow' : ''" class="px-2 py-1 text-xs rounded">M</button>
+                <button @click="size = 'lg'" :class="size === 'lg' ? 'bg-white dark:bg-gray-600 shadow' : ''" class="px-2 py-1 text-xs rounded">G</button>
+            </div>
+            <!-- Views -->
+            <button @click="view = 'grid'" :class="view === 'grid' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'" class="p-2 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            </button>
+            <button @click="view = 'list'" :class="view === 'list' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'" class="p-2 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="flex items-center gap-2 mb-4">
+        <span class="text-xs text-gray-500">Filtrar:</span>
+        <button @click="filterType = 'todos'" :class="filterType === 'todos' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 dark:bg-gray-700'" class="px-2.5 py-1 text-xs rounded-full">Todos</button>
+        <button @click="filterType = 'imagem'" :class="filterType === 'imagem' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500 dark:bg-gray-700'" class="px-2.5 py-1 text-xs rounded-full">Imagens</button>
+        <button @click="filterType = 'video'" :class="filterType === 'video' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 dark:bg-gray-700'" class="px-2.5 py-1 text-xs rounded-full">Videos</button>
+        <button @click="filterType = 'doc'" :class="filterType === 'doc' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 dark:bg-gray-700'" class="px-2.5 py-1 text-xs rounded-full">Documentos</button>
+    </div>
+
+    <!-- Upload drag-drop -->
+    <div class="mb-6" x-data="{
+        dragover: false, uploading: false, progress: 0, fileName: '',
+        doUpload(files) {
+            if (!files.length) return;
+            this.uploading = true; this.progress = 0;
+            this.fileName = files.length === 1 ? files[0].name : files.length + ' arquivos';
+            const form = new FormData();
+            form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            for (const f of files) {
+                if (f.size > 52428800) { alert(f.name + ' excede 50MB'); continue; }
+                form.append('arquivos', f);
+            }
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = (e) => { if (e.lengthComputable) this.progress = Math.round((e.loaded / e.total) * 100); };
+            xhr.onload = () => { window.location.reload(); };
+            xhr.onerror = () => { this.uploading = false; alert('Erro no upload'); };
+            xhr.open('POST', '{% url "upload_pasta" pasta.id %}');
+            xhr.send(form);
+        }
+    }">
+        <div x-show="!uploading" class="relative border-2 border-dashed rounded-xl p-4 text-center transition-colors isolate"
+             :class="dragover ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'"
+             @dragover.prevent="dragover = true" @dragleave="dragover = false"
+             @drop.prevent="dragover = false; doUpload($event.dataTransfer.files)">
+            <input type="file" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" @change="doUpload($event.target.files)">
+            <svg class="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p class="text-sm text-gray-500">Arraste ou <span class="text-indigo-600 font-medium">clique</span> | Max 50MB</p>
+        </div>
+        <div x-show="uploading" class="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+            <div class="flex items-center gap-3 mb-2">
+                <svg class="w-5 h-5 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <p class="text-sm text-gray-800 dark:text-white">Enviando <span x-text="fileName"></span> - <span x-text="progress"></span>%</p>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" :style="'width: ' + progress + '%'"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subpastas -->
+    {% if subpastas %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-6">
+        {% for sub in subpastas %}
+        <a href="{% url 'pasta_detalhe_interno' sub.id %}" class="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 hover:shadow transition">
+            <svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+            <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ sub.nome }}</p>
+                <p class="text-xs text-gray-400">{{ sub.get_arquivos_count }} arq.</p>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if arquivos %}
+    <!-- Grid View -->
+    <div x-show="view === 'grid'"
+         :class="{
+            'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8': size === 'sm',
+            'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5': size === 'md',
+            'grid-cols-1 sm:grid-cols-2 md:grid-cols-3': size === 'lg',
+         }"
+         class="grid gap-3">
+        {% for arq in arquivos %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition group cursor-pointer overflow-hidden"
+             x-show="filterType === 'todos' || (filterType === 'imagem' && {{ arq.is_imagem|yesno:'true,false' }}) || (filterType === 'video' && {{ arq.is_video|yesno:'true,false' }}) || (filterType === 'doc' && !{{ arq.is_imagem|yesno:'true,false' }} && !{{ arq.is_video|yesno:'true,false' }})"
+             {% if arq.is_imagem %}@click="lightbox = '{{ arq.arquivo.url }}'"{% elif arq.is_pdf %}@click="window.open('{{ arq.arquivo.url }}', '_blank')"{% endif %}>
+            <div class="aspect-square bg-gray-100 dark:bg-gray-700 relative overflow-hidden {% if arq.is_pdf %}p-0{% endif %}">
+                {% if arq.is_imagem %}
+                <img src="{{ arq.arquivo.url }}" alt="{{ arq.nome_original }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy">
+                {% elif arq.is_pdf %}
+                <div class="w-full h-full flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/10">
+                    <svg class="w-14 h-14 text-red-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 13h1c.55 0 1 .45 1 1v1c0 .55-.45 1-1 1h-1v1.5H7.5V13h1zm3 0h1.5c.55 0 1 .45 1 1v2.5c0 .55-.45 1-1 1H11.5V13zm4.5 0h2v1h-1.5v.5h1v1h-1v2H16V13z"/></svg>
+                    <span class="text-xs text-red-500 font-bold mt-1">PDF</span>
+                </div>
+                {% elif arq.is_video %}
+                <div class="w-full h-full flex items-center justify-center bg-purple-50 dark:bg-purple-900/20">
+                    <svg class="w-12 h-12 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                {% else %}
+                <div class="w-full h-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-700">
+                    <svg class="w-10 h-10 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                </div>
+                {% endif %}
+                {% if not arq.is_pdf %}
+                <a href="{{ arq.arquivo.url }}" target="_blank" @click.stop class="absolute top-1.5 right-1.5 p-1 bg-white/80 dark:bg-gray-800/80 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                    <svg class="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                </a>
+                {% endif %}
+            </div>
+            <div class="p-2" x-show="size !== 'sm'">
+                <p class="text-xs text-gray-800 dark:text-white truncate font-medium">{{ arq.nome_original }}</p>
+                <p class="text-xs text-gray-400">{{ arq.tamanho_formatado }} | {{ arq.criado_em|date:"d/m" }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- List View -->
+    <div x-show="view === 'list'" class="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-left">
+                <tr>
+                    <th class="px-4 py-3 w-12"></th>
+                    <th class="px-4 py-3">Nome</th>
+                    <th class="px-4 py-3">Tamanho</th>
+                    <th class="px-4 py-3">Enviado por</th>
+                    <th class="px-4 py-3">Data</th>
+                    <th class="px-4 py-3 w-10"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for arq in arquivos %}
+                <tr class="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                    x-show="filterType === 'todos' || (filterType === 'imagem' && {{ arq.is_imagem|yesno:'true,false' }}) || (filterType === 'video' && {{ arq.is_video|yesno:'true,false' }}) || (filterType === 'doc' && !{{ arq.is_imagem|yesno:'true,false' }} && !{{ arq.is_video|yesno:'true,false' }})"
+                    @click="{% if arq.is_imagem %}lightbox = '{{ arq.arquivo.url }}'{% endif %}">
+                    <td class="px-4 py-2">
+                        {% if arq.is_imagem %}
+                        <img src="{{ arq.arquivo.url }}" class="w-10 h-10 rounded object-cover" loading="lazy">
+                        {% elif arq.is_video %}
+                        <div class="w-10 h-10 rounded bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center"><svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg></div>
+                        {% else %}
+                        <div class="w-10 h-10 rounded bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></div>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2 font-medium text-gray-800 dark:text-white">{{ arq.nome_original }}</td>
+                    <td class="px-4 py-2 text-gray-500">{{ arq.tamanho_formatado }}</td>
+                    <td class="px-4 py-2 text-gray-500">{{ arq.enviado_por }}</td>
+                    <td class="px-4 py-2 text-gray-400 text-xs">{{ arq.criado_em|date:"d/m/Y H:i" }}</td>
+                    <td class="px-4 py-2"><a href="{{ arq.arquivo.url }}" target="_blank" @click.stop class="text-indigo-600 hover:text-indigo-800"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-12 text-center text-gray-400">
+        <svg class="w-16 h-16 mx-auto mb-3 text-gray-200 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+        <p>Pasta vazia. Arraste arquivos acima para enviar.</p>
+    </div>
+    {% endif %}
+
+    <!-- Modal Nova Subpasta -->
+    <div x-show="showNovaPasta" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-transition x-cloak>
+        <div class="fixed inset-0 bg-black/50" @click="showNovaPasta = false"></div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative z-10 p-6">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Nova Subpasta em {{ pasta.nome }}</h3>
+            <form method="post" action="{% url 'criar_subpasta' pasta.id %}">
+                {% csrf_token %}
+                <input type="text" name="nome" required placeholder="Nome da pasta" class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg text-sm mb-3 dark:bg-gray-700 dark:text-white">
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="showNovaPasta = false" class="px-4 py-2 text-sm text-gray-600">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div x-show="lightbox" x-transition class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" @click="lightbox = null" x-cloak>
+        <button @click="lightbox = null" class="absolute top-4 right-4 text-white/70 hover:text-white">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <img :src="lightbox" class="max-w-full max-h-[90vh] rounded-lg shadow-2xl" @click.stop>
+    </div>
+
+</div>
+{% endblock %}

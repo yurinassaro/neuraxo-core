@@ -60,10 +60,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                 <select name="cliente" id="cliente" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">Sem cliente...</option>
-                    {% for c in clientes %}
-                    <option value="{{ c.id }}">{{ c.nome }}{% if c.tipo == 'pj' %} (PJ){% endif %}</option>
-                    {% endfor %}
+                    <option value="">Selecione uma empresa primeiro...</option>
                 </select>
             </div>
         </div>
@@ -72,10 +69,7 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
                 <select name="responsavel" id="responsavel" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    <option value="">Selecione...</option>
-                    {% for p in pessoas %}
-                    <option value="{{ p.id }}">{{ p.nome }}{% if p.cargo %} ({{ p.cargo.nome }}){% endif %}</option>
-                    {% endfor %}
+                    <option value="">Selecione uma empresa primeiro...</option>
                 </select>
             </div>
 
@@ -130,6 +124,7 @@
 <script>
 const empresaSelect = document.getElementById('empresa');
 const responsavelSelect = document.getElementById('responsavel');
+const clienteSelect = document.getElementById('cliente');
 const participantesContainer = document.getElementById('participantes-container');
 const templateSelect = document.getElementById('template');
 const templateInfo = document.getElementById('template-info');
@@ -140,6 +135,7 @@ empresaSelect.addEventListener('change', function() {
     const empresaId = this.value;
     if (!empresaId) {
         responsavelSelect.innerHTML = '<option value="">Selecione uma empresa primeiro...</option>';
+        clienteSelect.innerHTML = '<option value="">Selecione uma empresa primeiro...</option>';
         participantesContainer.innerHTML = '<p class="text-sm text-gray-400">Selecione uma empresa primeiro...</p>';
         return;
     }
@@ -160,6 +156,16 @@ empresaSelect.addEventListener('change', function() {
             if (data.pessoas.length === 0) {
                 participantesContainer.innerHTML = '<p class="text-sm text-gray-400">Nenhuma pessoa nesta empresa</p>';
             }
+        });
+
+    fetch(`/api/clientes/empresa/${empresaId}/`)
+        .then(response => response.json())
+        .then(data => {
+            clienteSelect.innerHTML = '<option value="">Sem cliente...</option>';
+            data.clientes.forEach(c => {
+                const tipo = c.tipo === 'pj' ? ' (PJ)' : '';
+                clienteSelect.innerHTML += `<option value="${c.id}">${c.nome}${tipo}</option>`;
+            });
         });
 });
 

@@ -286,7 +286,7 @@ def processar_lembretes_diarios():
         tarefas = pessoas_items.get(pessoa, [])
         d_hoje = pessoas_demandas_hoje.get(pessoa, [])
         d_amanha = pessoas_demandas_amanha.get(pessoa, [])
-        contas = contas_hoje if pessoa.is_gestor else []
+        contas = contas_hoje if pessoa.eh_gestor else []
 
         if not tarefas and not d_hoje and not d_amanha and not contas:
             continue

@@ -123,7 +123,11 @@
             <p id="erro-atribuicao" class="text-xs text-red-500 mt-2 hidden">Selecione pelo menos um responsavel ou cargo!</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Horario sugerido</label>
+                <input type="time" name="horario_sugerido" value="{{ template.horario_sugerido|time:'H:i'|default:'' }}" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
             <div>
                 <label class="block text-sm text-gray-600 mb-1">Ordem de execucao</label>
                 <input type="number" name="ordem_execucao" value="{{ template.ordem_execucao }}" class="w-full px-3 py-2 border rounded-lg text-sm">
@@ -146,15 +150,46 @@
             </div>
         </div>
 
+        <div x-data="{ subs: {{ subtarefas_existentes_json|default:'[""]' }} }">
+            <label class="block text-sm text-gray-600 mb-2">Subtarefas</label>
+            <template x-for="(s, i) in subs" :key="i">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-gray-400 w-4" x-text="i+1"></span>
+                    <input type="text" x-model="subs[i]" placeholder="Ex: Abrir planilha, Conferir dados..."
+                           class="flex-1 px-3 py-2 border rounded-lg text-sm">
+                    <button type="button" @click="subs.splice(i,1)" x-show="subs.length>1" class="text-red-400 hover:text-red-600 text-lg px-1">&times;</button>
+                </div>
+            </template>
+            <button type="button" @click="subs.push('')" class="text-sm text-indigo-600 hover:text-indigo-800">+ Adicionar subtarefa</button>
+            <input type="hidden" name="subtarefas_json" :value="JSON.stringify(subs.filter(s=>s.trim()))">
+        </div>
+
         <div class="flex items-center gap-2">
             <input type="checkbox" name="ativo" id="ativo" {% if template.ativo %}checked{% endif %} class="rounded">
             <label for="ativo" class="text-sm text-gray-600">Ativo</label>
         </div>
 
-        <div class="pt-4 border-t">
+        <div class="pt-4 border-t flex justify-between items-center">
             <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">Salvar</button>
+            <button type="button" onclick="confirmarExclusao()" class="text-red-600 hover:text-red-800 text-sm underline">Excluir rotina</button>
         </div>
     </form>
+
+    <!-- Modal de confirmacao de exclusao -->
+    <div id="modal-excluir" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-md mx-4">
+            <h3 class="text-lg font-bold text-red-600 mb-2">Excluir Rotina</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">Tem certeza que deseja excluir a rotina <strong>{{ template.titulo }}</strong>?</p>
+            <p class="text-xs text-red-500 mb-4">Todas as tarefas diarias geradas por esta rotina tambem serao excluidas. Esta acao nao pode ser desfeita.</p>
+            <div class="flex justify-end gap-3">
+                <button onclick="fecharModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">Cancelar</button>
+                <form method="post" action="{% url 'excluir_rotina_template' template.id %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">Sim, excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -184,5 +219,16 @@ document.querySelector('form').addEventListener('submit', function(e) {
         document.getElementById('erro-atribuicao').scrollIntoView({behavior: 'smooth', block: 'center'});
     }
 });
+
+function confirmarExclusao() {
+    const modal = document.getElementById('modal-excluir');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+function fecharModal() {
+    const modal = document.getElementById('modal-excluir');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
 </script>
 {% endblock %}

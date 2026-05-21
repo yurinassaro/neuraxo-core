@@ -49,8 +49,9 @@ class ChecklistTemplate(models.Model):
                                            related_name='checklists',
                                            help_text='Ou atribuir a todos do cargo')
 
-    # Ordem de execução na rotina diária
+    # Ordem e horário de execução na rotina diária
     ordem_execucao = models.IntegerField(default=0, help_text='Ordem na lista de rotina diária (menor = primeiro)')
+    horario_sugerido = models.TimeField(null=True, blank=True, help_text='Horário sugerido para execução (ex: 08:00)')
 
     # Tempo estimado (em minutos) - rotina diária, máx 4h
     TEMPO_ESTIMADO_CHOICES = [
@@ -71,13 +72,16 @@ class ChecklistTemplate(models.Model):
     prioridade = models.IntegerField(default=1, choices=[(1, 'Baixa'), (2, 'Média'), (3, 'Alta')])
     ativo = models.BooleanField(default=True)
     enviar_lembrete = models.BooleanField(default=True)
+    criado_por = models.ForeignKey(Pessoa, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='rotinas_criadas',
+                                    help_text='Quem criou esta rotina (gestor ou funcionário)')
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = 'Rotina Diária'
         verbose_name_plural = 'Rotinas Diárias'
-        ordering = ['ordem_execucao', '-prioridade', 'titulo']
+        ordering = ['horario_sugerido', 'ordem_execucao', '-prioridade', 'titulo']
 
     def __str__(self):
         return f"{self.titulo} ({self.get_recorrencia_display()})"

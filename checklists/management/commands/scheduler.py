@@ -4,26 +4,19 @@ Uso: python manage.py scheduler
 
 Verifica a cada 60 segundos se há agendamentos pendentes.
 Gera tarefas recorrentes automaticamente à meia-noite.
-Multi-tenant: itera sobre todos os tenants ativos.
 """
 import time
 from django.core.management.base import BaseCommand
 from django.core.management import call_command
 from django.utils import timezone
-from django_tenants.utils import tenant_context
-from tenants.models import Client
 
 
 class Command(BaseCommand):
-    help = 'Scheduler de notificações e tarefas automáticas (multi-tenant)'
-
-    def _get_tenants(self):
-        """Retorna todos os tenants ativos (exceto public)"""
-        return Client.objects.exclude(schema_name='public').filter(ativo=True)
+    help = 'Scheduler de notificações e tarefas automáticas'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS('Scheduler iniciado (multi-tenant). Verificando a cada 60s...'))
-        self._ultimo_dia_gerado = {}
+        self.stdout.write(self.style.SUCCESS('Scheduler iniciado. Verificando a cada 60s...'))
+        self._ultimo_dia_gerado = None
 
         # Gerar tarefas do dia ao iniciar
         self.gerar_tarefas_se_necessario()
@@ -37,45 +30,41 @@ class Command(BaseCommand):
             time.sleep(60)
 
     def gerar_tarefas_se_necessario(self):
-        """Gera tarefas recorrentes do dia para cada tenant"""
+        """Gera tarefas recorrentes do dia"""
         hoje = timezone.localdate()
 
-        for tenant in self._get_tenants():
-            if self._ultimo_dia_gerado.get(tenant.schema_name) == hoje:
-                continue
+        if self._ultimo_dia_gerado == hoje:
+            return
 
-            self.stdout.write(f'[{timezone.localtime().strftime("%H:%M")}] [{tenant.nome}] Gerando tarefas para {hoje}...')
-            try:
-                with tenant_context(tenant):
-                    call_command('gerar_tarefas_dia')
-                    call_command('gerar_checklists', '--atualizar-atrasados')
+        self.stdout.write(f'[{timezone.localtime().strftime("%H:%M")}] Gerando tarefas para {hoje}...')
+        try:
+            call_command('gerar_tarefas_dia')
+            call_command('gerar_checklists', '--atualizar-atrasados')
 
-                    from financeiro.services import gerar_contas_pagar_todas_empresas
-                    criados = gerar_contas_pagar_todas_empresas()
-                    if criados:
-                        self.stdout.write(f'  [{tenant.nome}] {criados} conta(s) a pagar gerada(s).')
+            from financeiro.services import gerar_contas_pagar_todas_empresas
+            criados = gerar_contas_pagar_todas_empresas()
+            if criados:
+                self.stdout.write(f'  {criados} conta(s) a pagar gerada(s).')
 
-                self._ultimo_dia_gerado[tenant.schema_name] = hoje
-                self.stdout.write(self.style.SUCCESS(f'  [{tenant.nome}] Tarefas do dia {hoje} geradas.'))
-            except Exception as e:
-                self.stdout.write(self.style.ERROR(f'  [{tenant.nome}] Erro: {e}'))
+            self._ultimo_dia_gerado = hoje
+            self.stdout.write(self.style.SUCCESS(f'  Tarefas do dia {hoje} geradas.'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'  Erro: {e}'))
 
     def verificar_agendamentos(self):
         agora = timezone.localtime()
 
-        for tenant in self._get_tenants():
-            try:
-                with tenant_context(tenant):
-                    from notifications.models import AgendamentoNotificacao
+        try:
+            from notifications.models import AgendamentoNotificacao
 
-                    for agendamento in AgendamentoNotificacao.objects.filter(ativo=True):
-                        if agendamento.deve_executar_hoje(agora):
-                            self.stdout.write(f'[{agora.strftime("%H:%M")}] [{tenant.nome}] Executando: {agendamento.get_tipo_display()}')
-                            self.executar(agendamento)
-                            agendamento.ultima_execucao = timezone.now()
-                            agendamento.save()
-            except Exception as e:
-                self.stdout.write(self.style.ERROR(f'  [{tenant.nome}] Erro agendamentos: {e}'))
+            for agendamento in AgendamentoNotificacao.objects.filter(ativo=True):
+                if agendamento.deve_executar_hoje(agora):
+                    self.stdout.write(f'[{agora.strftime("%H:%M")}] Executando: {agendamento.get_tipo_display()}')
+                    self.executar(agendamento)
+                    agendamento.ultima_execucao = timezone.now()
+                    agendamento.save()
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'  Erro agendamentos: {e}'))
 
     def executar(self, agendamento):
         from notifications.wapi import (

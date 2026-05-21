@@ -70,7 +70,7 @@ class LancamentoAdmin(admin.ModelAdmin):
     def valor_fmt(self, obj):
         cor = '#28a745' if obj.tipo == 'entrada' else '#dc3545'
         return format_html(
-            '<span style="color:{};">R$ {:,.2f}</span>', cor, obj.valor
+            '<span style="color:{};">R$ {}</span>', cor, f'{obj.valor:,.2f}'
         )
     valor_fmt.short_description = 'Valor'
 

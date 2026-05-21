@@ -77,3 +77,6 @@ celerybeat.pid
 
 # Docker (local files)
 docker-compose.override.yml
+*.sql
+datadump.json
+GUIA_TESTES.md

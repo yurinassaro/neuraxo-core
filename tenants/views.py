@@ -1,23 +1,18 @@
-from django.contrib.admin.views.decorators import staff_member_required
-from django.http import JsonResponse
-from django_tenants.utils import schema_context
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect
 
 
-@staff_member_required
-def api_empresas_tenant(request, tenant_id):
-    """API para carregar empresas de um tenant (usado no admin do AcessoCompartilhado)"""
-    from .models import Client
+@login_required
+def trocar_empresa(request, empresa_id):
+    """Troca a empresa ativa na sessão do usuário. 0 = todas."""
+    if empresa_id == 0:
+        # Limpar filtro - mostrar todas
+        request.session.pop('empresa_ativa_id', None)
+    else:
+        from core.models import Pessoa
+        pessoa = Pessoa.objects.filter(user=request.user, ativo=True).first()
+        if pessoa and pessoa.empresas.filter(id=empresa_id, ativo=True).exists():
+            request.session['empresa_ativa_id'] = empresa_id
 
-    try:
-        tenant = Client.objects.get(pk=tenant_id)
-    except Client.DoesNotExist:
-        return JsonResponse({'empresas': []})
-
-    from core.models import Empresa
-
-    with schema_context(tenant.schema_name):
-        empresas = list(
-            Empresa.objects.filter(ativo=True).order_by('nome').values('id', 'nome')
-        )
-
-    return JsonResponse({'empresas': empresas})
+    next_url = request.GET.get('next', request.META.get('HTTP_REFERER', '/'))
+    return redirect(next_url)

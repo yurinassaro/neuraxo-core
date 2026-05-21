@@ -322,7 +322,7 @@ class ContaPagarItem(models.Model):
 
 
 class ConfigMercadoPago(models.Model):
-    """Configuração de integração Mercado Pago por empresa"""
+    """Configuração de integração Mercado Pago por empresa (DEPRECATED - usar GatewayPagamento)"""
     empresa = models.OneToOneField(Empresa, on_delete=models.CASCADE, related_name='config_mp')
     access_token = models.CharField(max_length=200, help_text='Access Token do Mercado Pago')
     ativo = models.BooleanField(default=True)
@@ -338,11 +338,69 @@ class ConfigMercadoPago(models.Model):
         return f"MP - {self.empresa.nome} ({'Ativo' if self.ativo else 'Inativo'})"
 
 
+class GatewayPagamento(models.Model):
+    """Gateway de pagamento integrado por empresa (Asaas, EFI, Mercado Pago)"""
+    GATEWAY_CHOICES = [
+        ('mercadopago', 'Mercado Pago'),
+        ('asaas', 'Asaas'),
+        ('efi', 'EFI (Gerencianet)'),
+    ]
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('ativo', 'Ativo'),
+        ('erro', 'Erro de Conexão'),
+        ('desconectado', 'Desconectado'),
+    ]
+
+    empresa = models.OneToOneField(Empresa, on_delete=models.CASCADE, related_name='gateway_pagamento')
+    gateway = models.CharField(max_length=20, choices=GATEWAY_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
+    credentials_encrypted = models.TextField(blank=True, help_text='JSON criptografado com credenciais')
+    sandbox = models.BooleanField(default=False, help_text='Usar ambiente sandbox/homologação')
+    ultima_sync = models.DateTimeField(null=True, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Gateway de Pagamento'
+        verbose_name_plural = 'Gateways de Pagamento'
+
+    def __str__(self):
+        return f"{self.get_gateway_display()} - {self.empresa.nome} ({self.get_status_display()})"
+
+    def set_credentials(self, data: dict):
+        """Criptografa e salva credenciais como JSON"""
+        import json
+        from cryptography.fernet import Fernet
+        from django.conf import settings
+        import base64, hashlib
+        key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+        f = Fernet(key)
+        self.credentials_encrypted = f.encrypt(json.dumps(data).encode()).decode()
+
+    def get_credentials(self) -> dict:
+        """Descriptografa e retorna credenciais"""
+        if not self.credentials_encrypted:
+            return {}
+        try:
+            import json
+            from cryptography.fernet import Fernet
+            from django.conf import settings
+            import base64, hashlib
+            key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+            f = Fernet(key)
+            return json.loads(f.decrypt(self.credentials_encrypted.encode()).decode())
+        except Exception:
+            return {}
+
+
 class ContaReceber(models.Model):
     """Template de conta a receber (recorrente, única ou parcelada)"""
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='contas_receber')
     cliente = models.ForeignKey(Pessoa, on_delete=models.SET_NULL, null=True, blank=True,
-                                 related_name='contas_receber', help_text='Cliente devedor')
+                                 related_name='contas_receber', help_text='Pessoa (legado)')
+    cliente_empresa = models.ForeignKey('core.Cliente', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='contas_receber', help_text='Empresa-cliente')
     projeto = models.ForeignKey(Projeto, on_delete=models.SET_NULL, null=True, blank=True,
                                  related_name='contas_receber', help_text='Projeto relacionado')
     descricao = models.CharField(max_length=300, help_text='Ex: Mensalidade, Projeto X, Consultoria')

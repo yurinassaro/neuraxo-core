@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from core.admin_views import schema_view
+from tenants.views import trocar_empresa
 
 # Customiza o admin
 admin.site.site_header = 'NeuraxoCore'
@@ -13,8 +14,10 @@ urlpatterns = [
     # Schema/Escopo do Banco (antes do admin para não conflitar)
     path('admin/schema/', schema_view, name='admin_schema'),
     path('admin/', admin.site.urls),
+    path('empresa/<int:empresa_id>/ativar/', trocar_empresa, name='trocar_empresa'),
     path('', include('checklists.urls')),
     path('financeiro/', include('financeiro.urls')),
+    path('jarvis/', include('jarvis.urls')),
     path('api/', include('checklists.api_urls')),
 ]
 

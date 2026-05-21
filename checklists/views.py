@@ -7,14 +7,14 @@ from django.utils import timezone
 from django.db.models import Count, Q, Sum, Avg
 from django.db.models.functions import Coalesce
 from .models import (
-    ChecklistItem, ChecklistTemplate, StatusItem, SubTarefa,
+    ChecklistItem, ChecklistTemplate, StatusItem, SubTarefa, SubTarefaTemplate,
     Demanda, SubTarefaDemanda, AnexoDemanda, ComentarioDemanda,
     StatusDemanda, PrioridadeDemanda, AproveitamentoDiario,
     Projeto, StatusProjeto, ProjetoTemplate, TipoEtapa,
     MapaMentalNo, TipoNoMapa, Anotacao,
 )
 from django.conf import settings
-from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre
+from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre, PastaEmpresa, ArquivoEmpresa
 from datetime import timedelta, date, datetime
 from calendar import monthrange
 import json
@@ -29,6 +29,18 @@ def get_pessoa_or_redirect(request):
         return None
 
 
+def get_empresas_filtradas(pessoa, request):
+    """Retorna empresas filtradas pela empresa ativa na sessão.
+    Se empresa_ativa_id está na sessão, filtra para ela.
+    Se não, retorna todas as empresas da pessoa."""
+    empresa_ativa_id = request.session.get('empresa_ativa_id')
+    if empresa_ativa_id:
+        filtradas = pessoa.empresas.filter(id=empresa_ativa_id, ativo=True)
+        if filtradas.exists():
+            return filtradas
+    return pessoa.empresas.filter(ativo=True)
+
+
 @login_required
 def dashboard(request):
     """Dashboard principal - visão geral completa"""
@@ -41,10 +53,13 @@ def dashboard(request):
         return render(request, 'checklists/sem_vinculo.html')
 
     # ========== DADOS DO USUÁRIO ==========
+    empresas_filtro = get_empresas_filtradas(pessoa, request)
+
     # Tarefas do dia
     minhas_tarefas = ChecklistItem.objects.filter(
         responsavel=pessoa,
-        data_referencia=hoje
+        data_referencia=hoje,
+        template__empresa__in=empresas_filtro,
     ).select_related('template', 'template__empresa')
 
     total_tarefas = minhas_tarefas.count()
@@ -56,7 +71,8 @@ def dashboard(request):
 
     # Minhas demandas abertas
     minhas_demandas = Demanda.objects.filter(
-        responsavel=pessoa
+        responsavel=pessoa,
+        empresa__in=empresas_filtro,
     ).exclude(status=StatusDemanda.CONCLUIDO).select_related('empresa')
 
     demandas_atrasadas = minhas_demandas.filter(prazo__lt=agora)
@@ -70,6 +86,7 @@ def dashboard(request):
         responsavel=pessoa,
         dia_fechado=True,
         justificativa='',
+        template__empresa__in=empresas_filtro,
     ).exclude(status=StatusItem.CONCLUIDO).count()
 
     # Aproveitamento últimos 7 dias
@@ -93,10 +110,10 @@ def dashboard(request):
     # ========== DADOS DO GESTOR ==========
     equipe_stats = None
     demandas_equipe = None
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     empresa_selecionada = None
 
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         # Filtro por empresa
         empresa_id = request.GET.get('empresa')
         if empresa_id:
@@ -227,8 +244,8 @@ def dashboard(request):
         'equipe_stats': equipe_stats,
         'demandas_equipe': demandas_equipe,
         'empresa_selecionada': empresa_selecionada,
-        'meus_projetos': meus_projetos if pessoa.is_gestor else None,
-        'aproveitamento_medio': aproveitamento_medio if pessoa.is_gestor and equipe_stats else None,
+        'meus_projetos': meus_projetos if pessoa.eh_gestor else None,
+        'aproveitamento_medio': aproveitamento_medio if pessoa.eh_gestor and equipe_stats else None,
     }
     return render(request, 'checklists/dashboard.html', context)
 
@@ -244,11 +261,13 @@ def rotina_diaria(request):
 
     # Filtros
     status_filter = request.GET.get('status', '')
+    empresas_filtro = get_empresas_filtradas(pessoa, request)
 
-    # Pega tarefas de TODAS as empresas do funcionário
+    # Pega tarefas das empresas filtradas
     items = ChecklistItem.objects.filter(
         responsavel=pessoa,
-        data_referencia=hoje
+        data_referencia=hoje,
+        template__empresa__in=empresas_filtro,
     ).select_related('template', 'template__empresa').order_by('ordem', 'template__ordem_execucao')
 
     if status_filter:
@@ -272,8 +291,8 @@ def rotina_diaria(request):
     inicio_hoje = timezone.make_aware(datetime.combine(hoje, time.min))
     fim_hoje = timezone.make_aware(datetime.combine(hoje, time.max))
 
-    if pessoa.is_gestor:
-        empresas_pessoa = pessoa.empresas.all()
+    if pessoa.eh_gestor:
+        empresas_pessoa = get_empresas_filtradas(pessoa, request)
         urgencias_hoje = Demanda.objects.filter(
             empresa__in=empresas_pessoa,
             prazo__range=(inicio_hoje, fim_hoje),
@@ -297,8 +316,8 @@ def rotina_diaria(request):
         status__in=[StatusDemanda.CONCLUIDO, StatusDemanda.CANCELADO]
     ).select_related('responsavel', 'empresa', 'projeto')
 
-    if pessoa.is_gestor:
-        empresas_pessoa = pessoa.empresas.all()
+    if pessoa.eh_gestor:
+        empresas_pessoa = get_empresas_filtradas(pessoa, request)
         filtro = Q(empresa__in=empresas_pessoa)
     else:
         filtro = Q(responsavel=pessoa)
@@ -331,11 +350,13 @@ def rotina_diaria(request):
     from financeiro.models import ContaPagarItem
     contas_pagar_hoje = ContaPagarItem.objects.filter(
         data_execucao=hoje, pago=False, dispensado=False,
+        conta_pagar__empresa__in=empresas_filtro,
     ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
 
     # Contas a pagar atrasadas (data_execucao < hoje e não pagas nem dispensadas)
     contas_pagar_atrasadas = ContaPagarItem.objects.filter(
         data_execucao__lt=hoje, pago=False, dispensado=False,
+        conta_pagar__empresa__in=empresas_filtro,
     ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
 
     context = {
@@ -369,7 +390,7 @@ def rotina_diaria(request):
     }
 
     # Cancelamentos pendentes de aprovação (gestor)
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         empresas_ids = pessoa.empresas.values_list('id', flat=True)
         context['cancelamentos_pendentes'] = ChecklistItem.objects.filter(
             cancelamento_solicitado=True,
@@ -403,9 +424,9 @@ def lista_demandas(request):
     data_inicio = request.GET.get('data_inicio', '')
     data_fim = request.GET.get('data_fim', '')
 
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         # Gestor vê todas das suas empresas
-        empresas = pessoa.empresas.all()
+        empresas = get_empresas_filtradas(pessoa, request)
         demandas_base = Demanda.objects.filter(empresa__in=empresas)
     else:
         # Funcionário vê apenas as dele
@@ -450,6 +471,48 @@ def lista_demandas(request):
             }
         demandas_por_empresa[empresa_nome]['demandas'].append(demanda)
 
+    # Projetos com demandas pendentes
+    empresas_ids = get_empresas_filtradas(pessoa, request).values_list('id', flat=True)
+    projetos = Projeto.objects.filter(
+        empresa_id__in=empresas_ids,
+        status__in=['planejamento', 'em_andamento'],
+    ).select_related('empresa').order_by('empresa__nome', 'titulo')
+
+    projetos_dados = []
+    for proj in projetos:
+        if pessoa.eh_gestor:
+            demandas_proj = Demanda.objects.filter(projeto=proj).exclude(status='concluido')
+        else:
+            demandas_proj = Demanda.objects.filter(projeto=proj, responsavel=pessoa).exclude(status='concluido')
+        if demandas_proj.exists():
+            projetos_dados.append({
+                'projeto': proj,
+                'demandas': demandas_proj.select_related('responsavel'),
+                'total': demandas_proj.count(),
+                'atrasadas': demandas_proj.filter(prazo__lt=timezone.now()).count(),
+            })
+    total_projetos = sum(p['total'] for p in projetos_dados)
+
+    # Pagamentos (contas a pagar) - apenas gestores
+    pagamentos_vencidos = []
+    pagamentos_a_vencer = []
+    total_pagamentos = 0
+    if pessoa.eh_gestor:
+        from financeiro.models import ContaPagarItem
+        hoje = timezone.localdate()
+        empresas_pag = get_empresas_filtradas(pessoa, request)
+        if empresa_filter:
+            empresas_pag = empresas_pag.filter(id=empresa_filter)
+        pagamentos_vencidos = ContaPagarItem.objects.filter(
+            data_vencimento__lt=hoje, pago=False, dispensado=False,
+            conta_pagar__empresa__in=empresas_pag,
+        ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
+        pagamentos_a_vencer = ContaPagarItem.objects.filter(
+            data_vencimento__gte=hoje, pago=False, dispensado=False,
+            conta_pagar__empresa__in=empresas_pag,
+        ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
+        total_pagamentos = pagamentos_vencidos.count() + pagamentos_a_vencer.count()
+
     context = {
         'pessoa': pessoa,
         'demandas_por_empresa': demandas_por_empresa,
@@ -463,21 +526,26 @@ def lista_demandas(request):
         'dias_concluidos': dias_concluidos,
         'data_inicio': data_inicio,
         'data_fim': data_fim,
+        'projetos_dados': projetos_dados,
+        'total_projetos': total_projetos,
+        'pagamentos_vencidos': pagamentos_vencidos,
+        'pagamentos_a_vencer': pagamentos_a_vencer,
+        'total_pagamentos': total_pagamentos,
     }
     return render(request, 'checklists/lista_demandas.html', context)
 
 
 @login_required
 def criar_demanda(request):
-    """Cria uma nova demanda (apenas gestores)"""
+    """Cria uma nova demanda (gestores ou funcionários para si mesmos)"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
-        messages.error(request, 'Apenas gestores podem criar demandas.')
+    if not pessoa:
         return redirect('lista_demandas')
 
     if request.method == 'POST':
         empresa_id = request.POST.get('empresa')
-        responsavel_id = request.POST.get('responsavel')
+        # Funcionário só pode criar pra si mesmo
+        responsavel_id = request.POST.get('responsavel') if pessoa.eh_gestor else str(pessoa.id)
         titulo = request.POST.get('titulo')
         descricao = request.POST.get('descricao', '')
         instrucoes = request.POST.get('instrucoes', '')
@@ -526,9 +594,12 @@ def criar_demanda(request):
             messages.success(request, f'Demanda "{titulo}" criada com sucesso!')
             return redirect('detalhe_demanda', demanda_id=demanda.id)
 
-    # Listar pessoas das empresas do gestor
-    empresas = pessoa.empresas.all()
-    pessoas = Pessoa.objects.filter(empresas__in=empresas, ativo=True).distinct()
+    # Listar pessoas disponíveis
+    empresas = get_empresas_filtradas(pessoa, request)
+    if pessoa.eh_gestor:
+        pessoas = Pessoa.objects.filter(empresas__in=empresas, ativo=True).distinct()
+    else:
+        pessoas = Pessoa.objects.filter(id=pessoa.id)
 
     projetos = Projeto.objects.filter(
         empresa__in=empresas
@@ -566,7 +637,7 @@ def detalhe_demanda(request, demanda_id):
         return redirect('dashboard')
 
     # Verificar permissão
-    if demanda.responsavel != pessoa and demanda.solicitante != pessoa and not pessoa.is_gestor:
+    if demanda.responsavel != pessoa and demanda.solicitante != pessoa and not pessoa.eh_gestor:
         messages.error(request, 'Você não tem permissão para ver esta demanda.')
         return redirect('lista_demandas')
 
@@ -585,7 +656,7 @@ def editar_demanda(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.solicitante != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.solicitante != pessoa and not pessoa.eh_gestor):
         messages.error(request, 'Sem permissão para editar.')
         return redirect('detalhe_demanda', demanda_id=demanda.id)
 
@@ -607,7 +678,7 @@ def editar_demanda(request, demanda_id):
         messages.success(request, 'Demanda atualizada!')
         return redirect('detalhe_demanda', demanda_id=demanda.id)
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pessoas = Pessoa.objects.filter(empresas__in=empresas, ativo=True).distinct()
     projetos = Projeto.objects.filter(
         empresa__in=empresas
@@ -634,7 +705,7 @@ def mudar_status_demanda(request, demanda_id):
     if not pessoa:
         return JsonResponse({'error': 'Usuário não vinculado'}, status=403)
 
-    if demanda.responsavel != pessoa and not pessoa.is_gestor:
+    if demanda.responsavel != pessoa and not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -669,7 +740,7 @@ def reabrir_demanda(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     demanda.reabrir()
@@ -683,7 +754,7 @@ def timer_demanda_iniciar(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     demanda.iniciar_timer()
@@ -707,7 +778,7 @@ def timer_demanda_pausar(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     demanda.pausar_timer()
@@ -729,7 +800,7 @@ def timer_demanda_editar(request, demanda_id):
     pessoa = get_pessoa_or_redirect(request)
 
     # Apenas gestores podem editar o timer
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Apenas gestores podem editar o timer'}, status=403)
 
     data = json.loads(request.body)
@@ -789,7 +860,7 @@ def salvar_anotacao_demanda(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -871,7 +942,7 @@ def excluir_anexo_demanda(request, anexo_id):
     anexo = get_object_or_404(AnexoDemanda, id=anexo_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (anexo.enviado_por != pessoa and not pessoa.is_gestor):
+    if not pessoa or (anexo.enviado_por != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     anexo.arquivo.delete()
@@ -886,7 +957,7 @@ def adicionar_subtarefa_demanda(request, demanda_id):
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -923,7 +994,7 @@ def toggle_subtarefa_demanda(request, subtarefa_id):
     demanda = subtarefa.demanda
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     subtarefa.concluida = not subtarefa.concluida
@@ -944,7 +1015,7 @@ def excluir_subtarefa_demanda(request, subtarefa_id):
     demanda = subtarefa.demanda
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     subtarefa.delete()
@@ -956,12 +1027,29 @@ def excluir_subtarefa_demanda(request, subtarefa_id):
 
 @login_required
 @require_POST
+def reordenar_subtarefas_demanda(request, demanda_id):
+    """Reordena subtarefas de uma demanda via drag & drop"""
+    demanda = get_object_or_404(Demanda, id=demanda_id)
+    pessoa = get_pessoa_or_redirect(request)
+
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+
+    data = json.loads(request.body)
+    for item in data.get('items', []):
+        SubTarefaDemanda.objects.filter(id=item['id'], demanda=demanda).update(ordem=item['ordem'])
+
+    return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_POST
 def marcar_dependente_demanda(request, demanda_id):
     """Marca demanda como dependente"""
     demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1023,7 +1111,9 @@ def marcar_concluido(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Sem permissão'}, status=403)
         messages.error(request, 'Você não tem permissão para alterar esta tarefa.')
         return redirect('dashboard')
 
@@ -1031,6 +1121,10 @@ def marcar_concluido(request, item_id):
         observacoes = request.POST.get('observacoes', '')
         item.observacoes = observacoes
         item.marcar_concluido()
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'status': 'ok', 'message': f'Tarefa "{item.template.titulo}" concluída!'})
+
         messages.success(request, f'Tarefa "{item.template.titulo}" marcada como concluída!')
 
     return redirect('rotina_diaria')
@@ -1042,7 +1136,7 @@ def marcar_em_andamento(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         messages.error(request, 'Você não tem permissão para alterar esta tarefa.')
         return redirect('dashboard')
 
@@ -1069,7 +1163,7 @@ def relatorio_workspace(request, workspace_id):
     """Relatório do workspace (apenas gestores)"""
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         messages.error(request, 'Acesso restrito a gestores.')
         return redirect('dashboard')
 
@@ -1118,7 +1212,7 @@ def timer_iniciar(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     item.iniciar_timer()
@@ -1142,7 +1236,7 @@ def timer_pausar(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     item.pausar_timer()
@@ -1176,7 +1270,7 @@ def detalhe_tarefa(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         messages.error(request, 'Você não tem permissão para ver esta tarefa.')
         return redirect('dashboard')
 
@@ -1194,7 +1288,7 @@ def salvar_anotacao(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1211,7 +1305,7 @@ def adicionar_subtarefa(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1248,7 +1342,7 @@ def toggle_subtarefa(request, subtarefa_id):
     item = subtarefa.checklist_item
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     subtarefa.concluida = not subtarefa.concluida
@@ -1269,7 +1363,7 @@ def excluir_subtarefa(request, subtarefa_id):
     item = subtarefa.checklist_item
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     subtarefa.delete()
@@ -1282,12 +1376,29 @@ def excluir_subtarefa(request, subtarefa_id):
 
 @login_required
 @require_POST
+def reordenar_subtarefas(request, item_id):
+    """Reordena subtarefas de um checklist item via drag & drop"""
+    item = get_object_or_404(ChecklistItem, id=item_id)
+    pessoa = get_pessoa_or_redirect(request)
+
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+
+    data = json.loads(request.body)
+    for sub in data.get('items', []):
+        SubTarefa.objects.filter(id=sub['id'], checklist_item=item).update(ordem=sub['ordem'])
+
+    return JsonResponse({'status': 'ok'})
+
+
+@login_required
+@require_POST
 def sincronizar_subtarefas(request, item_id):
     """Sincroniza subtarefas do template para o item"""
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     # Buscar subtarefas do template que não existem no item
@@ -1322,7 +1433,7 @@ def cancelar_tarefa(request, item_id):
 
     motivo = request.POST.get('motivo', '')
 
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         # Gestor cancela direto
         item.pausar_timer()
         item.status = StatusItem.CANCELADO
@@ -1347,7 +1458,7 @@ def aprovar_cancelamento(request, item_id):
     """Gestor aprova solicitação de cancelamento"""
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     item.pausar_timer()
@@ -1363,7 +1474,7 @@ def recusar_cancelamento(request, item_id):
     """Gestor recusa solicitação de cancelamento"""
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     item.cancelamento_solicitado = False
@@ -1379,7 +1490,7 @@ def mudar_status(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1410,7 +1521,7 @@ def marcar_dependente(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1468,7 +1579,7 @@ def pausar_tarefa(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1498,7 +1609,7 @@ def despausar_tarefa(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     item.dependente_de = None
@@ -1523,7 +1634,7 @@ def listar_pessoas(request):
 
     # Retorna pessoas das mesmas empresas
     pessoas = Pessoa.objects.filter(
-        empresas__in=pessoa.empresas.all(),
+        empresas__in=get_empresas_filtradas(pessoa, request),
         ativo=True
     ).distinct().exclude(id=pessoa.id)
 
@@ -1537,21 +1648,51 @@ def listar_pessoas(request):
 
 @login_required
 def listar_pessoas_empresa(request, empresa_id):
-    """Retorna pessoas de uma empresa específica"""
+    """Retorna pessoas de uma empresa específica (apenas se o usuário tem acesso)"""
     pessoa = get_pessoa_or_redirect(request)
 
     if not pessoa:
         return JsonResponse({'pessoas': []})
 
+    # Garante isolamento: só retorna pessoas de empresas que o user tem acesso
+    empresas_user = pessoa.empresas.values_list('id', flat=True)
+    if int(empresa_id) not in empresas_user:
+        return JsonResponse({'pessoas': []})
+
     pessoas = Pessoa.objects.filter(
         empresas__id=empresa_id,
         ativo=True
-    ).distinct()
+    ).distinct().order_by('nome')
 
     return JsonResponse({
         'pessoas': [
             {'id': p.id, 'nome': p.nome, 'cargo': p.cargo.nome if p.cargo else ''}
             for p in pessoas
+        ]
+    })
+
+
+@login_required
+def listar_clientes_empresa(request, empresa_id):
+    """Retorna clientes de uma empresa específica (apenas se o usuário tem acesso)"""
+    pessoa = get_pessoa_or_redirect(request)
+
+    if not pessoa:
+        return JsonResponse({'clientes': []})
+
+    empresas_user = pessoa.empresas.values_list('id', flat=True)
+    if int(empresa_id) not in empresas_user:
+        return JsonResponse({'clientes': []})
+
+    clientes = Cliente.objects.filter(
+        empresa_id=empresa_id,
+        ativo=True
+    ).order_by('nome')
+
+    return JsonResponse({
+        'clientes': [
+            {'id': c.id, 'nome': c.nome, 'tipo': c.tipo}
+            for c in clientes
         ]
     })
 
@@ -1590,7 +1731,7 @@ def salvar_justificativa(request, item_id):
     item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or (item.responsavel != pessoa and not pessoa.is_gestor):
+    if not pessoa or (item.responsavel != pessoa and not pessoa.eh_gestor):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -1615,7 +1756,7 @@ def acompanhamento(request):
     if not pessoa:
         return redirect('dashboard')
 
-    if not pessoa.is_gestor:
+    if not pessoa.eh_gestor:
         messages.error(request, 'Acesso restrito a gestores.')
         return redirect('dashboard')
 
@@ -1626,7 +1767,7 @@ def acompanhamento(request):
     aba = request.GET.get('aba', 'hoje')
 
     # Filtro por empresa
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     empresa_id = request.GET.get('empresa')
     empresa_selecionada = None
     if empresa_id:
@@ -1874,12 +2015,12 @@ def aproveitamento(request):
 
     # Se é gestor, pode ver de outros ou "todos"
     pessoa_id = request.GET.get('pessoa')
-    ver_todos = pessoa.is_gestor and pessoa_id == 'todos'
+    ver_todos = pessoa.eh_gestor and pessoa_id == 'todos'
 
     if ver_todos:
         pessoa_visualizada = None
         pessoas_equipe = Pessoa.objects.filter(
-            empresas__in=pessoa.empresas.all(), ativo=True
+            empresas__in=get_empresas_filtradas(pessoa, request), ativo=True
         ).distinct()
 
         aproveitamentos = AproveitamentoDiario.objects.filter(
@@ -1919,7 +2060,7 @@ def aproveitamento(request):
                 'total': agg['total'] or 0,
             })
     else:
-        if pessoa.is_gestor and pessoa_id:
+        if pessoa.eh_gestor and pessoa_id:
             pessoa_visualizada = get_object_or_404(Pessoa, id=pessoa_id)
         else:
             pessoa_visualizada = pessoa
@@ -1964,9 +2105,9 @@ def aproveitamento(request):
 
     # Lista de pessoas (para gestor)
     pessoas_lista = []
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         pessoas_lista = Pessoa.objects.filter(
-            empresas__in=pessoa.empresas.all(),
+            empresas__in=get_empresas_filtradas(pessoa, request),
             ativo=True
         ).distinct()
 
@@ -2003,7 +2144,7 @@ def aproveitamento_dia(request, data_str):
 
     # Se é gestor, pode ver de outros
     pessoa_id = request.GET.get('pessoa')
-    if pessoa.is_gestor and pessoa_id:
+    if pessoa.eh_gestor and pessoa_id:
         pessoa_visualizada = get_object_or_404(Pessoa, id=pessoa_id)
     else:
         pessoa_visualizada = pessoa
@@ -2070,9 +2211,9 @@ def lista_projetos(request):
     empresa_filter = request.GET.get('empresa', '')
     status_filter = request.GET.get('status', '')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
 
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         projetos = Projeto.objects.filter(empresa__in=empresas)
     else:
         projetos = Projeto.objects.filter(
@@ -2105,26 +2246,17 @@ def lista_templates(request):
     if not pessoa:
         return redirect('dashboard')
 
-    if not pessoa.is_gestor:
+    if not pessoa.eh_gestor:
         messages.error(request, 'Apenas gestores podem acessar templates.')
         return redirect('lista_projetos')
 
     templates = ProjetoTemplate.objects.filter(ativo=True).prefetch_related('etapas')
 
     # Buscar templates globais vinculados a este tenant
-    from django.db import connection
-    from tenants.models import Client, ProjetoTemplateGlobal
-    templates_globais = []
-    try:
-        schema_atual = connection.schema_name
-        if schema_atual and schema_atual != 'public':
-            tenant_atual = Client.objects.get(schema_name=schema_atual)
-            templates_globais = ProjetoTemplateGlobal.objects.filter(
-                ativo=True,
-                tenants=tenant_atual
-            ).prefetch_related('etapas').order_by('titulo')
-    except Client.DoesNotExist:
-        pass
+    from tenants.models import ProjetoTemplateGlobal
+    templates_globais = ProjetoTemplateGlobal.objects.filter(
+        ativo=True
+    ).prefetch_related('etapas').order_by('titulo')
 
     context = {
         'pessoa': pessoa,
@@ -2156,7 +2288,7 @@ def mapa_mental_template(request, template_id):
 def criar_projeto(request):
     """Cria um novo projeto (apenas gestores)"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         messages.error(request, 'Apenas gestores podem criar projetos.')
         return redirect('lista_projetos')
 
@@ -2242,25 +2374,16 @@ def criar_projeto(request):
 
             return redirect('detalhe_projeto', projeto_id=projeto.id)
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pessoas = Pessoa.objects.filter(empresas__in=empresas, ativo=True).distinct()
-    clientes = Cliente.objects.filter(ativo=True).order_by('nome')
+    clientes = Cliente.objects.filter(empresa__in=empresas, ativo=True).order_by('nome')
     templates = ProjetoTemplate.objects.filter(ativo=True).order_by('titulo')
 
     # Buscar templates globais vinculados a este tenant
-    from django.db import connection
-    from tenants.models import Client, ProjetoTemplateGlobal
-    templates_globais = []
-    try:
-        schema_atual = connection.schema_name
-        if schema_atual and schema_atual != 'public':
-            tenant_atual = Client.objects.get(schema_name=schema_atual)
-            templates_globais = ProjetoTemplateGlobal.objects.filter(
-                ativo=True,
-                tenants=tenant_atual
-            ).prefetch_related('etapas').order_by('titulo')
-    except Client.DoesNotExist:
-        pass
+    from tenants.models import ProjetoTemplateGlobal
+    templates_globais = ProjetoTemplateGlobal.objects.filter(
+        ativo=True
+    ).prefetch_related('etapas').order_by('titulo')
 
     context = {
         'pessoa': pessoa,
@@ -2283,9 +2406,9 @@ def detalhe_projeto(request, projeto_id):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     tem_acesso = (
-        projeto.empresa in empresas and pessoa.is_gestor
+        projeto.empresa in empresas and pessoa.eh_gestor
     ) or projeto.responsavel == pessoa or pessoa in projeto.participantes.all()
     if not tem_acesso:
         messages.error(request, 'Você não tem acesso a este projeto.')
@@ -2314,7 +2437,7 @@ def adicionar_etapa_projeto(request, projeto_id):
     projeto = get_object_or_404(Projeto, id=projeto_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         messages.error(request, 'Apenas gestores podem adicionar etapas.')
         return redirect('detalhe_projeto', projeto_id=projeto.id)
 
@@ -2364,7 +2487,7 @@ def adicionar_etapa_projeto(request, projeto_id):
             except Exception as e:
                 messages.error(request, f'Erro ao criar etapa: {e}')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pessoas = Pessoa.objects.filter(empresas__id=projeto.empresa_id, ativo=True).distinct()
 
     context = {
@@ -2384,7 +2507,7 @@ def gerenciar_participantes_projeto(request, projeto_id):
     projeto = get_object_or_404(Projeto, id=projeto_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         messages.error(request, 'Apenas gestores podem gerenciar participantes.')
         return redirect('detalhe_projeto', projeto_id=projeto.id)
 
@@ -2408,9 +2531,9 @@ def excluir_demanda(request, demanda_id):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pode_excluir = (request.user.is_staff or
-                    (pessoa.is_gestor and demanda.empresa in empresas))
+                    (pessoa.eh_gestor and demanda.empresa in empresas))
 
     if not pode_excluir:
         messages.error(request, 'Você não tem permissão para excluir esta demanda.')
@@ -2430,9 +2553,9 @@ def excluir_etapa_projeto(request, demanda_id):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pode_excluir = (request.user.is_staff or
-                    (pessoa.is_gestor and demanda.empresa in empresas))
+                    (pessoa.eh_gestor and demanda.empresa in empresas))
 
     if not pode_excluir:
         messages.error(request, 'Você não tem permissão para excluir esta etapa.')
@@ -2453,18 +2576,26 @@ def excluir_tarefa(request, item_id):
     pessoa = get_pessoa_or_redirect(request)
 
     if not pessoa:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Sem permissão'}, status=403)
         return redirect('dashboard')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     pode_excluir = (request.user.is_staff or
-                    (pessoa.is_gestor and item.template.empresa in empresas))
+                    (pessoa.eh_gestor and item.template.empresa in empresas))
 
     if not pode_excluir:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Sem permissão'}, status=403)
         messages.error(request, 'Você não tem permissão para excluir esta tarefa.')
         return redirect('rotina_diaria')
 
     titulo = item.template.titulo
     item.delete()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'ok', 'message': f'Tarefa "{titulo}" excluída.'})
+
     messages.success(request, f'Tarefa "{titulo}" excluída.')
     return redirect('rotina_diaria')
 
@@ -2474,7 +2605,7 @@ def mudar_status_projeto(request, projeto_id):
     projeto = get_object_or_404(Projeto, id=projeto_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -2491,6 +2622,24 @@ def mudar_status_projeto(request, projeto_id):
         'novo_status': projeto.status,
         'status_display': projeto.get_status_display(),
     })
+
+
+@login_required
+@require_POST
+def excluir_rotina_template(request, template_id):
+    """Exclui uma rotina (ChecklistTemplate) e todas as tarefas geradas - apenas gestor"""
+    template = get_object_or_404(ChecklistTemplate, id=template_id)
+    pessoa = get_pessoa_or_redirect(request)
+
+    pode_excluir = pessoa and (pessoa.is_gestor_empresa(template.empresa) or template.criado_por == pessoa)
+    if not pode_excluir:
+        messages.error(request, 'Sem permissao para excluir esta rotina.')
+        return redirect('lista_rotinas')
+
+    titulo = template.titulo
+    template.delete()
+    messages.success(request, f'Rotina "{titulo}" excluida com sucesso.')
+    return redirect('lista_rotinas')
 
 
 @login_required
@@ -2535,7 +2684,7 @@ def excluir_projeto(request, projeto_id):
 def wapi_painel(request):
     """Painel de configuração e controle do W-API"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return redirect('dashboard')
 
     from notifications.wapi import WAPIClient
@@ -2655,7 +2804,7 @@ def wapi_painel(request):
 def wapi_status(request):
     """Verifica status da instância W-API"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     from notifications.wapi import WAPIClient
@@ -2679,7 +2828,7 @@ def wapi_status(request):
 def wapi_enviar_teste(request):
     """Envia mensagem de teste via W-API"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -2765,7 +2914,7 @@ def wapi_cobrar_dependencia(request):
 def wapi_cobrar_todos(request):
     """Envia cobrança para TODAS as pessoas externas com pendências"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     from notifications.wapi import processar_cobrancas_externas
@@ -2778,7 +2927,7 @@ def wapi_cobrar_todos(request):
 def wapi_salvar_agendamentos(request):
     """Salva configurações de agendamento de notificações"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     from notifications.models import AgendamentoNotificacao
@@ -2804,7 +2953,7 @@ def wapi_salvar_agendamentos(request):
 def wapi_executar_agendamento(request):
     """Executa manualmente um tipo de notificação"""
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -2845,8 +2994,8 @@ def lista_rotinas(request):
     if not pessoa:
         return redirect('dashboard')
 
-    if pessoa.is_gestor:
-        empresas = pessoa.empresas.all()
+    if pessoa.eh_gestor:
+        empresas = get_empresas_filtradas(pessoa, request)
         rotinas = ChecklistTemplate.objects.filter(empresa__in=empresas).select_related(
             'empresa', 'responsavel', 'cargo_responsavel'
         ).order_by('empresa__nome', 'ordem_execucao')
@@ -2857,7 +3006,7 @@ def lista_rotinas(request):
 
     # Solicitações de cancelamento pendentes (só gestor)
     cancelamentos_pendentes = []
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         empresas_ids = pessoa.empresas.values_list('id', flat=True)
         cancelamentos_pendentes = ChecklistItem.objects.filter(
             cancelamento_solicitado=True,
@@ -2874,18 +3023,20 @@ def lista_rotinas(request):
 
 @login_required
 def criar_rotina(request):
-    """Cria nova rotina - apenas gestores"""
+    """Cria nova rotina - gestores ou funcionários (funcionário só pra si mesmo)"""
     from .models import Recorrencia, DiaSemana
     from core.models import Cargo
 
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
-        messages.error(request, 'Apenas gestores podem criar rotinas.')
+    if not pessoa:
         return redirect('rotina_diaria')
 
-    empresas = pessoa.empresas.all()
-    pessoas = Pessoa.objects.filter(empresas__in=empresas).distinct()
-    cargos = Cargo.objects.all()
+    empresas = get_empresas_filtradas(pessoa, request)
+    if pessoa.eh_gestor:
+        pessoas = Pessoa.objects.filter(empresas__in=empresas).distinct()
+    else:
+        pessoas = Pessoa.objects.filter(id=pessoa.id)
+    cargos = Cargo.objects.all() if pessoa.eh_gestor else Cargo.objects.none()
 
     if request.method == 'POST':
         empresa_id = request.POST.get('empresa')
@@ -2897,11 +3048,17 @@ def criar_rotina(request):
         dia_mes = request.POST.get('dia_mes') or None
         responsavel_val = request.POST.get('responsavel') or None
         cargo_id = request.POST.get('cargo_responsavel') or None
+        horario_sugerido = request.POST.get('horario_sugerido') or None
         ordem = request.POST.get('ordem_execucao', 0) or 0
         tempo = request.POST.get('tempo_estimado', 0) or 0
         prioridade = request.POST.get('prioridade', 1) or 1
 
         dias_ativos = request.POST.getlist('dias_semana_ativos')
+
+        # Funcionário só pode criar pra si mesmo
+        if not pessoa.eh_gestor:
+            responsavel_val = str(pessoa.id)
+            cargo_id = None
 
         # Validar atribuição obrigatória
         if not responsavel_val and not cargo_id:
@@ -2924,11 +3081,28 @@ def criar_rotina(request):
                 responsavel_id=responsavel_id,
                 responsavel_todos=responsavel_todos,
                 cargo_responsavel_id=int(cargo_id) if cargo_id else None,
+                horario_sugerido=horario_sugerido,
                 ordem_execucao=int(ordem),
                 tempo_estimado=int(tempo),
                 prioridade=int(prioridade),
                 dias_semana_ativos=','.join(sorted(dias_ativos)) if dias_ativos else '0,1,2,3,4',
+                criado_por=pessoa,
             )
+            # Salvar subtarefas
+            import json
+            subtarefas_json = request.POST.get('subtarefas_json', '[]')
+            try:
+                subtarefas_list = json.loads(subtarefas_json)
+                for i, titulo_sub in enumerate(subtarefas_list):
+                    if titulo_sub.strip():
+                        SubTarefaTemplate.objects.create(
+                            template=template,
+                            titulo=titulo_sub.strip(),
+                            ordem=i,
+                        )
+            except (json.JSONDecodeError, TypeError):
+                pass
+
             messages.success(request, f'Rotina "{titulo}" criada!')
             return redirect('lista_rotinas')
 
@@ -2946,18 +3120,28 @@ def criar_rotina(request):
 
 @login_required
 def editar_rotina(request, template_id):
-    """Edita rotina existente - apenas gestores"""
+    """Edita rotina existente - gestor ou criador da rotina"""
     from .models import Recorrencia, DiaSemana
     from core.models import Cargo
 
     pessoa = get_pessoa_or_redirect(request)
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa:
         return redirect('rotina_diaria')
 
     template = get_object_or_404(ChecklistTemplate, id=template_id)
-    empresas = pessoa.empresas.all()
-    pessoas = Pessoa.objects.filter(empresas__in=empresas).distinct()
-    cargos = Cargo.objects.all()
+
+    # Funcionário só pode editar rotinas que ele criou
+    pode_editar = pessoa.eh_gestor or template.criado_por == pessoa
+    if not pode_editar:
+        messages.error(request, 'Voce so pode editar rotinas que voce criou.')
+        return redirect('lista_rotinas')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    if pessoa.eh_gestor:
+        pessoas = Pessoa.objects.filter(empresas__in=empresas).distinct()
+    else:
+        pessoas = Pessoa.objects.filter(id=pessoa.id)
+    cargos = Cargo.objects.all() if pessoa.eh_gestor else Cargo.objects.none()
 
     if request.method == 'POST':
         template.empresa_id = request.POST.get('empresa')
@@ -2981,6 +3165,7 @@ def editar_rotina(request, template_id):
         template.responsavel_todos = responsavel_val == 'todos'
         template.responsavel_id = None if template.responsavel_todos or not responsavel_val else int(responsavel_val)
         template.cargo_responsavel_id = int(cargo_id) if cargo_id else None
+        template.horario_sugerido = request.POST.get('horario_sugerido') or None
         template.ordem_execucao = int(request.POST.get('ordem_execucao', 0) or 0)
         template.tempo_estimado = int(request.POST.get('tempo_estimado', 0) or 0)
         template.prioridade = int(request.POST.get('prioridade', 1) or 1)
@@ -2988,8 +3173,30 @@ def editar_rotina(request, template_id):
         template.dias_semana_ativos = ','.join(sorted(dias_ativos)) if dias_ativos else '0,1,2,3,4'
         template.ativo = 'ativo' in request.POST
         template.save()
+
+        # Atualizar subtarefas
+        subtarefas_json = request.POST.get('subtarefas_json', '[]')
+        try:
+            subtarefas_list = json.loads(subtarefas_json)
+            # Deletar as antigas e recriar
+            template.subtarefas_template.all().delete()
+            for i, titulo_sub in enumerate(subtarefas_list):
+                if titulo_sub.strip():
+                    SubTarefaTemplate.objects.create(
+                        template=template,
+                        titulo=titulo_sub.strip(),
+                        ordem=i,
+                    )
+        except (json.JSONDecodeError, TypeError):
+            pass
+
         messages.success(request, f'Rotina "{template.titulo}" atualizada!')
         return redirect('lista_rotinas')
+
+    # Carregar subtarefas existentes
+    subtarefas_existentes = list(
+        template.subtarefas_template.order_by('ordem').values_list('titulo', flat=True)
+    )
 
     context = {
         'pessoa': pessoa,
@@ -3000,6 +3207,7 @@ def editar_rotina(request, template_id):
         'recorrencias': Recorrencia.choices,
         'dias_semana': DiaSemana.choices,
         'tempos': ChecklistTemplate.TEMPO_ESTIMADO_CHOICES,
+        'subtarefas_existentes_json': json.dumps(subtarefas_existentes),
     }
     return render(request, 'checklists/editar_rotina.html', context)
 
@@ -3037,8 +3245,8 @@ def calendario_eventos(request):
 
     eventos = []
 
-    is_gestor = pessoa.is_gestor
-    empresas = pessoa.empresas.all()
+    is_gestor = pessoa.eh_gestor
+    empresas = get_empresas_filtradas(pessoa, request)
 
     # 1. ChecklistItem (Tarefas)
     tarefas_qs = ChecklistItem.objects.filter(
@@ -3169,9 +3377,9 @@ def mapa_mental_projeto(request, projeto_id):
     if not pessoa:
         return redirect('dashboard')
 
-    empresas = pessoa.empresas.all()
+    empresas = get_empresas_filtradas(pessoa, request)
     tem_acesso = (
-        projeto.empresa in empresas and pessoa.is_gestor
+        projeto.empresa in empresas and pessoa.eh_gestor
     ) or projeto.responsavel == pessoa or pessoa in projeto.participantes.all()
 
     if not tem_acesso:
@@ -3210,7 +3418,7 @@ def adicionar_no_mapa(request, projeto_id):
     projeto = get_object_or_404(Projeto, id=projeto_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     try:
@@ -3262,7 +3470,7 @@ def excluir_no_mapa(request, no_id):
     no = get_object_or_404(MapaMentalNo, id=no_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     no.delete()
@@ -3276,7 +3484,7 @@ def editar_no_mapa(request, no_id):
     no = get_object_or_404(MapaMentalNo, id=no_id)
     pessoa = get_pessoa_or_redirect(request)
 
-    if not pessoa or not pessoa.is_gestor:
+    if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     try:
@@ -3432,33 +3640,67 @@ def cofre(request):
     if not cofre_desbloqueado:
         return render(request, 'checklists/cofre_login.html', {'pessoa': pessoa})
 
-    # Empresas que o usuário tem acesso
-    if pessoa.is_gestor:
-        empresas = Empresa.objects.filter(ativo=True)
-    else:
-        empresas = pessoa.empresas.filter(ativo=True)
+    # Empresas que o usuário tem acesso (filtrado pela empresa ativa)
+    empresas = get_empresas_filtradas(pessoa, request)
 
     # Filtro por empresa
     empresa_id = request.GET.get('empresa', '')
     categoria = request.GET.get('categoria', '')
     q = request.GET.get('q', '').strip()
 
-    itens = ItemCofre.objects.filter(empresa__in=empresas).select_related('empresa', 'criado_por')
+    cliente_id = request.GET.get('cliente', '')
+
+    itens = ItemCofre.objects.filter(empresa__in=empresas).select_related('empresa', 'criado_por', 'cliente')
+
+    # Permissão: gestor vê tudo, outros só o que criaram ou foi compartilhado com eles
+    if not pessoa.eh_gestor:
+        itens = itens.filter(Q(criado_por=pessoa) | Q(compartilhado_com=pessoa)).distinct()
 
     if empresa_id:
         itens = itens.filter(empresa_id=empresa_id)
+    if cliente_id:
+        itens = itens.filter(cliente_id=cliente_id)
     if categoria:
         itens = itens.filter(categoria=categoria)
     if q:
         itens = itens.filter(Q(titulo__icontains=q) | Q(usuario__icontains=q) | Q(url__icontains=q) | Q(notas__icontains=q))
 
+    clientes = Cliente.objects.filter(empresa__in=empresas, ativo=True).order_by('nome')
+
+    # Agrupar por cliente
+    itens_por_cliente = {}
+    itens_internos = []
+    for item in itens:
+        if item.cliente:
+            nome = item.cliente.nome
+            if nome not in itens_por_cliente:
+                itens_por_cliente[nome] = {'cliente': item.cliente, 'itens': []}
+            itens_por_cliente[nome]['itens'].append(item)
+        else:
+            itens_internos.append(item)
+
+    vista = request.GET.get('vista', 'todos')
+
+    # Funcionários pra compartilhamento (só gestor vê)
+    funcionarios_cofre = []
+    if pessoa.eh_gestor:
+        funcionarios_cofre = Pessoa.objects.filter(
+            empresas__in=empresas, ativo=True
+        ).exclude(id=pessoa.id).distinct().order_by('nome')
+
     return render(request, 'checklists/cofre.html', {
         'itens': itens,
         'empresas': empresas,
         'empresa_id': empresa_id,
+        'cliente_id': cliente_id,
+        'clientes': clientes,
         'categoria_selecionada': categoria,
         'categorias': CategoriaCofre.choices,
         'q': q,
+        'vista': vista,
+        'itens_por_cliente': itens_por_cliente,
+        'itens_internos': itens_internos,
+        'funcionarios_cofre': funcionarios_cofre,
     })
 
 
@@ -3483,13 +3725,16 @@ def cofre_criar(request):
         return redirect('cofre')
 
     # Verificar acesso à empresa
-    if pessoa.is_gestor:
+    if pessoa.eh_gestor:
         empresa = get_object_or_404(Empresa, id=empresa_id, ativo=True)
     else:
         empresa = get_object_or_404(Empresa, id=empresa_id, ativo=True, pessoas=pessoa)
 
+    cliente_id = request.POST.get('cliente') or None
+
     item = ItemCofre(
         empresa=empresa,
+        cliente_id=cliente_id,
         titulo=titulo,
         categoria=categoria,
         url=url,
@@ -3499,6 +3744,12 @@ def cofre_criar(request):
     )
     item.set_senha(senha)
     item.save()
+
+    # Compartilhar com funcionários selecionados
+    compartilhar_ids = request.POST.getlist('compartilhado_com')
+    if compartilhar_ids:
+        item.compartilhado_com.set(compartilhar_ids)
+
     messages.success(request, 'Credencial adicionada ao cofre!')
     return redirect('cofre')
 
@@ -3512,15 +3763,13 @@ def cofre_editar(request, item_id):
         return redirect('dashboard')
 
     # Verificar acesso
-    if pessoa.is_gestor:
-        empresas = Empresa.objects.filter(ativo=True)
-    else:
-        empresas = pessoa.empresas.filter(ativo=True)
+    empresas = pessoa.empresas.filter(ativo=True)
 
     item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
 
     titulo = request.POST.get('titulo', '').strip()
     categoria = request.POST.get('categoria', item.categoria)
+    empresa_id = request.POST.get('empresa', '')
     url = request.POST.get('url', '').strip()
     usuario = request.POST.get('usuario', '').strip()
     senha = request.POST.get('senha', '').strip()
@@ -3529,6 +3778,14 @@ def cofre_editar(request, item_id):
     if not titulo:
         messages.error(request, 'Título é obrigatório.')
         return redirect('cofre')
+
+    # Trocar empresa se fornecida e diferente
+    if empresa_id and str(item.empresa_id) != empresa_id:
+        nova_empresa = get_object_or_404(Empresa, id=empresa_id, ativo=True)
+        if not pessoa.eh_gestor and not pessoa.empresas.filter(id=nova_empresa.id).exists():
+            messages.error(request, 'Sem acesso a esta empresa.')
+            return redirect('cofre')
+        item.empresa = nova_empresa
 
     item.titulo = titulo
     item.categoria = categoria
@@ -3539,6 +3796,11 @@ def cofre_editar(request, item_id):
     if senha:
         item.set_senha(senha)
     item.save()
+
+    # Atualizar compartilhamento
+    compartilhar_ids = request.POST.getlist('compartilhado_com')
+    item.compartilhado_com.set(compartilhar_ids)
+
     messages.success(request, 'Credencial atualizada!')
     return redirect('cofre')
 
@@ -3551,10 +3813,7 @@ def cofre_excluir(request, item_id):
     if not pessoa:
         return redirect('dashboard')
 
-    if pessoa.is_gestor:
-        empresas = Empresa.objects.filter(ativo=True)
-    else:
-        empresas = pessoa.empresas.filter(ativo=True)
+    empresas = pessoa.empresas.filter(ativo=True)
 
     item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
     item.delete()
@@ -3569,16 +3828,18 @@ def cofre_ver_senha(request, item_id):
     if not pessoa:
         return JsonResponse({'error': 'Sem vínculo'}, status=403)
 
-    if pessoa.is_gestor:
-        empresas = Empresa.objects.filter(ativo=True)
-    else:
-        empresas = pessoa.empresas.filter(ativo=True)
+    empresas = pessoa.empresas.filter(ativo=True)
 
     # Verificar se cofre está desbloqueado
     if not request.session.get('cofre_desbloqueado', False):
         return JsonResponse({'error': 'Cofre bloqueado'}, status=403)
 
     item = get_object_or_404(ItemCofre, id=item_id, empresa__in=empresas)
+
+    # Permissão: gestor, criador ou compartilhado
+    if not pessoa.eh_gestor and item.criado_por != pessoa and not item.compartilhado_com.filter(id=pessoa.id).exists():
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+
     return JsonResponse({'senha': item.get_senha()})
 
 
@@ -3588,3 +3849,1154 @@ def cofre_bloquear(request):
     """Bloqueia o cofre (remove desbloqueio da sessão)"""
     request.session.pop('cofre_desbloqueado', None)
     return redirect('cofre')
+
+
+# ============================================
+# REORDENAR ROTINAS (drag & drop)
+# ============================================
+
+@login_required
+@require_POST
+def reordenar_rotinas(request):
+    """API para reordenar rotinas via drag & drop"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        items = data.get('items', [])
+        for item in items:
+            ChecklistTemplate.objects.filter(id=item['id']).update(
+                ordem_execucao=item['ordem']
+            )
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+# ============================================
+# NOTIFICAÇÕES IN-APP
+# ============================================
+
+@login_required
+def notificacoes(request):
+    """Lista notificações do usuário"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    notifs = pessoa.notificacoes_inapp.all()[:50]
+    nao_lidas = pessoa.notificacoes_inapp.filter(lida=False).count()
+
+    return render(request, 'checklists/notificacoes.html', {
+        'notificacoes': notifs,
+        'nao_lidas': nao_lidas,
+    })
+
+
+@login_required
+def notificacoes_count(request):
+    """API: retorna contagem de não lidas (polling)"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'count': 0})
+    count = pessoa.notificacoes_inapp.filter(lida=False).count()
+    return JsonResponse({'count': count})
+
+
+@login_required
+@require_POST
+def notificacao_marcar_lida(request, notif_id):
+    """Marca notificação como lida e redireciona"""
+    from core.models import NotificacaoInApp
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    notif = get_object_or_404(NotificacaoInApp, id=notif_id, destinatario=pessoa)
+    notif.lida = True
+    notif.save(update_fields=['lida'])
+
+    if notif.url:
+        return redirect(notif.url)
+    return redirect('notificacoes')
+
+
+@login_required
+@require_POST
+def notificacoes_marcar_todas(request):
+    """Marca todas como lidas"""
+    pessoa = get_pessoa_or_redirect(request)
+    if pessoa:
+        pessoa.notificacoes_inapp.filter(lida=False).update(lida=True)
+    return redirect('notificacoes')
+
+
+# ============================================
+# EQUIPE - Gestão de Usuários
+# ============================================
+
+@login_required
+def equipe(request):
+    """Lista membros da equipe com seus papéis por empresa"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        messages.error(request, 'Apenas gestores podem gerenciar a equipe.')
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    membros = Pessoa.objects.filter(
+        empresas__in=empresas, ativo=True
+    ).distinct().select_related('user', 'cargo').prefetch_related('empresas', 'empresas_gestor')
+
+    membros_dados = []
+    for m in membros:
+        emps_dados = []
+        for emp in m.empresas.filter(id__in=empresas).order_by('nome'):
+            papel = m.get_papel_empresa(emp)
+            emps_dados.append({
+                'empresa': emp,
+                'papel': papel,
+                'is_gestor': papel == 'gestor',
+            })
+        membros_dados.append({
+            'pessoa': m,
+            'email': m.user.email if m.user else '',
+            'username': m.user.username if m.user else '',
+            'is_active': m.user.is_active if m.user else False,
+            'empresas': emps_dados,
+        })
+
+    context = {
+        'pessoa': pessoa,
+        'membros': membros_dados,
+        'empresas': empresas,
+        'total_membros': len(membros_dados),
+    }
+    return render(request, 'checklists/equipe.html', context)
+
+
+@login_required
+@require_POST
+def convidar_membro(request):
+    """Convida novo membro por email"""
+    from django.contrib.auth.models import User
+    import secrets
+
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return redirect('dashboard')
+
+    email = request.POST.get('email', '').strip().lower()
+    nome = request.POST.get('nome', '').strip()
+    empresa_ids = request.POST.getlist('empresas')
+    papel = request.POST.get('papel', 'funcionario')
+
+    if not email or not nome or not empresa_ids:
+        messages.error(request, 'Nome, email e pelo menos uma empresa são obrigatórios.')
+        return redirect('equipe')
+
+    from core.models import PapelEmpresa
+
+    # Verificar se email já existe
+    user_existente = User.objects.filter(email__iexact=email).first()
+    if user_existente:
+        pessoa_existente = Pessoa.objects.filter(user=user_existente).first()
+        if pessoa_existente:
+            for eid in empresa_ids:
+                emp = Empresa.objects.filter(id=eid).first()
+                if emp:
+                    pessoa_existente.empresas.add(emp)
+                    PapelEmpresa.objects.update_or_create(
+                        pessoa=pessoa_existente, empresa=emp,
+                        defaults={'papel': papel}
+                    )
+            messages.success(request, f'{nome} já existe e foi adicionado às empresas selecionadas.')
+            return redirect('equipe')
+
+    # Criar novo usuário
+    senha_temp = secrets.token_urlsafe(8)
+    username = email.split('@')[0]
+    base_username = username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f'{base_username}{counter}'
+        counter += 1
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=senha_temp,
+    )
+
+    nova_pessoa = Pessoa.objects.create(
+        user=user,
+        nome=nome,
+        email=email,
+        ativo=True,
+    )
+
+    for eid in empresa_ids:
+        emp = Empresa.objects.filter(id=eid).first()
+        if emp:
+            nova_pessoa.empresas.add(emp)
+            PapelEmpresa.objects.create(
+                pessoa=nova_pessoa, empresa=emp, papel=papel
+            )
+
+    messages.success(request, f'{nome} convidado! Senha temporária: {senha_temp}')
+    return redirect('equipe')
+
+
+@login_required
+@require_POST
+def editar_membro(request, pessoa_id):
+    """Edita papel de um membro nas empresas"""
+    pessoa_logada = get_pessoa_or_redirect(request)
+    if not pessoa_logada or not pessoa_logada.is_gestor:
+        return redirect('dashboard')
+
+    from core.models import PapelEmpresa
+
+    membro = get_object_or_404(Pessoa, id=pessoa_id, ativo=True)
+    empresas_gestor = pessoa_logada.empresas.filter(ativo=True)
+
+    for emp in empresas_gestor:
+        papel = request.POST.get(f'papel_{emp.id}')
+        if papel in ('gestor', 'colaborador', 'executante'):
+            membro.empresas.add(emp)
+            PapelEmpresa.objects.update_or_create(
+                pessoa=membro, empresa=emp,
+                defaults={'papel': papel}
+            )
+        elif papel == 'remover':
+            membro.empresas.remove(emp)
+            PapelEmpresa.objects.filter(pessoa=membro, empresa=emp).delete()
+
+    messages.success(request, f'Permissões de {membro.nome} atualizadas.')
+    return redirect('equipe')
+
+
+# ============================================
+# EMPRESAS
+# ============================================
+
+@login_required
+def lista_empresas(request):
+    """Lista empresas do usuário com opção de criar"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return redirect('dashboard')
+
+    empresas = pessoa.empresas.filter(ativo=True).order_by('nome')
+    empresas_dados = []
+    for emp in empresas:
+        papel = pessoa.get_papel_empresa(emp)
+        pessoas_count = Pessoa.objects.filter(empresas=emp, ativo=True).count()
+        empresas_dados.append({
+            'empresa': emp,
+            'papel': papel,
+            'pessoas': pessoas_count,
+        })
+
+    return render(request, 'checklists/empresas.html', {
+        'pessoa': pessoa,
+        'empresas': empresas_dados,
+    })
+
+
+@login_required
+@require_POST
+def criar_empresa(request):
+    """Cria nova empresa e vincula ao usuário"""
+    from core.models import PapelEmpresa
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return redirect('dashboard')
+
+    nome = request.POST.get('nome', '').strip()
+    cor = request.POST.get('cor', '#6366f1')
+
+    if not nome:
+        messages.error(request, 'Nome é obrigatório.')
+        return redirect('lista_empresas')
+
+    if Empresa.objects.filter(nome__iexact=nome).exists():
+        messages.error(request, f'Empresa "{nome}" já existe.')
+        return redirect('lista_empresas')
+
+    emp = Empresa.objects.create(nome=nome, cor=cor)
+    pessoa.empresas.add(emp)
+    pessoa.empresas_gestor.add(emp)
+    PapelEmpresa.objects.create(pessoa=pessoa, empresa=emp, papel='gestor')
+
+    messages.success(request, f'Empresa "{nome}" criada!')
+    return redirect('lista_empresas')
+
+
+@login_required
+@require_POST
+def editar_empresa(request, empresa_id):
+    """Edita nome/cor de uma empresa"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    emp = get_object_or_404(Empresa, id=empresa_id)
+    if not pessoa.is_gestor_empresa(emp):
+        messages.error(request, 'Sem permissão.')
+        return redirect('lista_empresas')
+
+    nome = request.POST.get('nome', '').strip()
+    cor = request.POST.get('cor', emp.cor)
+
+    if nome:
+        emp.nome = nome
+    emp.cor = cor
+    emp.save()
+
+    messages.success(request, f'Empresa "{emp.nome}" atualizada!')
+    return redirect('lista_empresas')
+
+
+# ============================================
+# CLIENTES E SOLICITAÇÕES
+# ============================================
+
+@login_required
+def clientes_dashboard(request):
+    """Dashboard de clientes com pendências"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    clientes = Cliente.objects.filter(empresa__in=empresas, ativo=True).order_by('nome')
+
+    from core.models import Solicitacao
+    # Stats
+    total_solicitacoes = Solicitacao.objects.filter(empresa__in=empresas).exclude(status='cancelado')
+    pendentes = total_solicitacoes.filter(status__in=['pendente', 'em_andamento']).count()
+    atrasadas = total_solicitacoes.filter(status__in=['pendente', 'em_andamento'], prazo__lt=timezone.now()).count()
+    concluidas = total_solicitacoes.filter(status='concluido').count()
+
+    # Clientes com pendências
+    clientes_dados = []
+    for c in clientes:
+        pend = c.get_pendencias_count()
+        atras = c.get_atrasadas_count()
+        clientes_dados.append({
+            'cliente': c,
+            'pendencias': pend,
+            'atrasadas': atras,
+        })
+    # Ordenar: atrasados primeiro
+    clientes_dados.sort(key=lambda x: (-x['atrasadas'], -x['pendencias']))
+
+    # Solicitações atrasadas (urgentes)
+    sol_atrasadas = Solicitacao.objects.filter(
+        empresa__in=empresas, status__in=['pendente', 'em_andamento'],
+        prazo__lt=timezone.now(),
+    ).select_related('cliente', 'contato', 'empresa').order_by('prazo')
+
+    # Últimas solicitações
+    ultimas = Solicitacao.objects.filter(
+        empresa__in=empresas
+    ).select_related('cliente', 'empresa', 'contato').order_by('-criado_em')[:10]
+
+    # Respondidas recentemente (cliente respondeu, voce precisa ver)
+    from core.models import ComentarioSolicitacao
+    respostas_recentes = ComentarioSolicitacao.objects.filter(
+        solicitacao__empresa__in=empresas,
+        autor_is_cliente=True,
+    ).select_related('solicitacao', 'solicitacao__cliente').order_by('-criado_em')[:5]
+
+    # Stats financeiros
+    from django.db.models import Sum
+    receita_mensal = clientes.filter(status_contrato='ativo').aggregate(
+        total=Sum('valor_mensal'))['total'] or 0
+    inadimplentes = clientes.filter(status_contrato='inadimplente')
+    inadimplentes_count = inadimplentes.count()
+    inadimplentes_valor = inadimplentes.aggregate(total=Sum('valor_mensal'))['total'] or 0
+
+    context = {
+        'pessoa': pessoa,
+        'clientes': clientes_dados,
+        'total_clientes': clientes.count(),
+        'pendentes': pendentes,
+        'atrasadas': atrasadas,
+        'concluidas': concluidas,
+        'sol_atrasadas': sol_atrasadas,
+        'ultimas': ultimas,
+        'respostas_recentes': respostas_recentes,
+        'empresas': empresas,
+        'receita_mensal': receita_mensal,
+        'inadimplentes_count': inadimplentes_count,
+        'inadimplentes_valor': inadimplentes_valor,
+        'clientes_ativos': clientes.filter(status_contrato='ativo').count(),
+        'clientes_pausados': clientes.filter(status_contrato='pausado').count(),
+    }
+    return render(request, 'checklists/clientes_dashboard.html', context)
+
+
+@login_required
+def cliente_detalhe(request, cliente_id):
+    """Detalhe de um cliente com suas solicitações"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    from core.models import Solicitacao, TipoSolicitacao, StatusSolicitacao, PastaCliente
+    empresas = get_empresas_filtradas(pessoa, request)
+    cliente = get_object_or_404(Cliente, id=cliente_id, empresa__in=empresas)
+
+    solicitacoes = Solicitacao.objects.filter(
+        cliente=cliente
+    ).select_related('empresa', 'criado_por', 'contato').order_by('-criado_em')
+
+    pastas = PastaCliente.objects.filter(
+        cliente=cliente, pasta_pai__isnull=True
+    ).prefetch_related('arquivos_pasta', 'subpastas')
+
+    context = {
+        'pessoa': pessoa,
+        'cliente': cliente,
+        'solicitacoes': solicitacoes,
+        'pendentes': solicitacoes.filter(status__in=['pendente', 'em_andamento']),
+        'concluidas': solicitacoes.filter(status='concluido'),
+        'tipos': TipoSolicitacao.choices,
+        'empresas': empresas,
+        'pastas': pastas,
+    }
+    return render(request, 'checklists/cliente_detalhe.html', context)
+
+
+@login_required
+@require_POST
+def criar_solicitacao(request):
+    """Cria nova solicitação ao cliente"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    from core.models import Solicitacao, NotificacaoInApp
+
+    cliente_id = request.POST.get('cliente')
+    titulo = request.POST.get('titulo', '').strip()
+    descricao = request.POST.get('descricao', '').strip()
+    tipo = request.POST.get('tipo', 'outro')
+    prazo = request.POST.get('prazo') or None
+
+    if not cliente_id or not titulo:
+        messages.error(request, 'Cliente e título são obrigatórios.')
+        return redirect('clientes_dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    cliente = get_object_or_404(Cliente, id=cliente_id, empresa__in=empresas)
+
+    sol = Solicitacao.objects.create(
+        empresa=cliente.empresa,
+        cliente=cliente,
+        criado_por=pessoa,
+        titulo=titulo,
+        descricao=descricao,
+        tipo=tipo,
+        prazo=prazo,
+    )
+
+    messages.success(request, f'Solicitação "{titulo}" criada para {cliente.nome}!')
+    return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+
+@login_required
+@require_POST
+def solicitacao_status(request, sol_id):
+    """Altera status de uma solicitação"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    from core.models import Solicitacao
+    empresas = get_empresas_filtradas(pessoa, request)
+    sol = get_object_or_404(Solicitacao, id=sol_id, empresa__in=empresas)
+
+    novo_status = request.POST.get('status')
+    if novo_status in ('pendente', 'em_andamento', 'concluido', 'cancelado'):
+        sol.status = novo_status
+        if novo_status == 'concluido':
+            sol.concluido_em = timezone.now()
+        sol.save()
+
+    return redirect('cliente_detalhe', cliente_id=sol.cliente_id)
+
+
+@login_required
+@require_POST
+def criar_cliente(request):
+    """Cria empresa-cliente com contato principal"""
+    from django.contrib.auth.models import User
+    from core.models import ContatoCliente
+    import secrets
+
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    nome = request.POST.get('nome', '').strip()
+    email = request.POST.get('email', '').strip()
+    telefone = request.POST.get('telefone', '').strip()
+    empresa_id = request.POST.get('empresa')
+    cpf_cnpj = request.POST.get('cpf_cnpj', '').strip()
+    segmento = request.POST.get('segmento', 'outro')
+    tipo_contrato = request.POST.get('tipo_contrato', 'mensal')
+    valor_mensal = request.POST.get('valor_mensal') or None
+    dia_vencimento = request.POST.get('dia_vencimento') or None
+    forma_pagamento = request.POST.get('forma_pagamento', 'boleto')
+    data_inicio_contrato = request.POST.get('data_inicio_contrato') or None
+    servicos = request.POST.get('servicos', '').strip()
+    contato_nome = request.POST.get('contato_nome', '').strip()
+    contato_email = request.POST.get('contato_email', '').strip()
+    contato_telefone = request.POST.get('contato_telefone', '').strip()
+
+    if not nome or not empresa_id or not contato_nome or not contato_email:
+        messages.error(request, 'Nome da empresa, responsável e email são obrigatórios.')
+        return redirect('clientes_dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    empresa = get_object_or_404(Empresa, id=empresa_id, id__in=empresas)
+
+    cliente = Cliente.objects.create(
+        empresa=empresa,
+        nome=nome,
+        razao_social=request.POST.get('razao_social', '').strip(),
+        email=email,
+        telefone=telefone,
+        cpf_cnpj=cpf_cnpj,
+        inscricao_estadual=request.POST.get('inscricao_estadual', '').strip(),
+        inscricao_municipal=request.POST.get('inscricao_municipal', '').strip(),
+        endereco=request.POST.get('endereco', '').strip(),
+        cidade=request.POST.get('cidade', '').strip(),
+        uf=request.POST.get('uf', '').strip().upper(),
+        cep=request.POST.get('cep', '').strip(),
+        site=request.POST.get('site', '').strip(),
+        segmento=segmento,
+        tipo_contrato=tipo_contrato,
+        valor_mensal=valor_mensal,
+        dia_vencimento=dia_vencimento,
+        forma_pagamento=forma_pagamento,
+        data_inicio_contrato=data_inicio_contrato,
+        servicos=servicos,
+    )
+
+    # Criar user para o contato (login no portal)
+    senha_temp = secrets.token_urlsafe(8)
+    username = contato_email.split('@')[0]
+    base_username = username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f'{base_username}{counter}'
+        counter += 1
+
+    user = User.objects.create_user(
+        username=username,
+        email=contato_email,
+        password=senha_temp,
+    )
+
+    ContatoCliente.objects.create(
+        cliente=cliente,
+        user=user,
+        nome=contato_nome,
+        email=contato_email,
+        telefone=contato_telefone,
+        papel='dono',
+    )
+
+    messages.success(request, f'Cliente "{nome}" cadastrado! Responsável: {contato_nome} (senha: {senha_temp})')
+    return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+
+@login_required
+@require_POST
+def editar_cliente(request, cliente_id):
+    """Edita dados do cliente"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    cliente = get_object_or_404(Cliente, id=cliente_id, empresa__in=empresas)
+
+    cliente.nome = request.POST.get('nome', cliente.nome).strip()
+    cliente.razao_social = request.POST.get('razao_social', cliente.razao_social).strip()
+    cliente.cpf_cnpj = request.POST.get('cpf_cnpj', cliente.cpf_cnpj).strip()
+    cliente.inscricao_estadual = request.POST.get('inscricao_estadual', cliente.inscricao_estadual).strip()
+    cliente.inscricao_municipal = request.POST.get('inscricao_municipal', cliente.inscricao_municipal).strip()
+    cliente.email = request.POST.get('email', cliente.email).strip()
+    cliente.telefone = request.POST.get('telefone', cliente.telefone).strip()
+    cliente.site = request.POST.get('site', cliente.site).strip()
+    cliente.endereco = request.POST.get('endereco', cliente.endereco).strip()
+    cliente.cidade = request.POST.get('cidade', cliente.cidade).strip()
+    cliente.uf = request.POST.get('uf', cliente.uf).strip().upper()
+    cliente.cep = request.POST.get('cep', cliente.cep).strip()
+    cliente.segmento = request.POST.get('segmento', cliente.segmento)
+    cliente.status_contrato = request.POST.get('status_contrato', cliente.status_contrato)
+    cliente.tipo_contrato = request.POST.get('tipo_contrato', cliente.tipo_contrato)
+    cliente.forma_pagamento = request.POST.get('forma_pagamento', cliente.forma_pagamento)
+    cliente.servicos = request.POST.get('servicos', cliente.servicos).strip()
+    cliente.observacoes = request.POST.get('observacoes', cliente.observacoes).strip()
+
+    valor = request.POST.get('valor_mensal')
+    cliente.valor_mensal = valor if valor else None
+    dia = request.POST.get('dia_vencimento')
+    cliente.dia_vencimento = int(dia) if dia else None
+    data_inicio = request.POST.get('data_inicio_contrato')
+    cliente.data_inicio_contrato = data_inicio if data_inicio else None
+
+    cliente.save()
+    messages.success(request, f'Cliente "{cliente.nome}" atualizado!')
+    return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+
+@login_required
+@require_POST
+def criar_contato_cliente(request, cliente_id):
+    """Adiciona contato/funcionário a um cliente"""
+    from django.contrib.auth.models import User
+    from core.models import ContatoCliente
+    import secrets
+
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    cliente = get_object_or_404(Cliente, id=cliente_id, empresa__in=empresas)
+
+    nome = request.POST.get('nome', '').strip()
+    cpf = request.POST.get('cpf', '').strip()
+    email = request.POST.get('email', '').strip()
+    telefone = request.POST.get('telefone', '').strip()
+    funcao = request.POST.get('funcao', '').strip()
+    papel = request.POST.get('papel', 'funcionario')
+    criar_acesso = 'criar_acesso' in request.POST
+
+    if not nome or not email:
+        messages.error(request, 'Nome e email são obrigatórios.')
+        return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+    user = None
+    senha_temp = ''
+    if criar_acesso:
+        senha_temp = secrets.token_urlsafe(8)
+        username = email.split('@')[0]
+        base_username = username
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base_username}{counter}'
+            counter += 1
+        user = User.objects.create_user(username=username, email=email, password=senha_temp)
+
+    ContatoCliente.objects.create(
+        cliente=cliente, user=user, nome=nome, cpf=cpf, email=email,
+        telefone=telefone, funcao=funcao, papel=papel,
+    )
+
+    msg = f'{nome} adicionado!'
+    if senha_temp:
+        msg += f' Senha portal: {senha_temp}'
+    messages.success(request, msg)
+    return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+
+@login_required
+def config_pastas_empresa(request, empresa_id):
+    """Configura templates de pastas para novos clientes de uma empresa"""
+    from core.models import PastaTemplateEmpresa
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return redirect('dashboard')
+
+    empresa = get_object_or_404(Empresa, id=empresa_id)
+
+    if request.method == 'POST':
+        # Deletar e recriar
+        PastaTemplateEmpresa.objects.filter(empresa=empresa).delete()
+        pastas_json = request.POST.get('pastas_json', '[]')
+        try:
+            pastas = json.loads(pastas_json)
+            for i, nome in enumerate(pastas):
+                if nome.strip():
+                    PastaTemplateEmpresa.objects.create(
+                        empresa=empresa, nome=nome.strip(), ordem=i
+                    )
+        except (json.JSONDecodeError, TypeError):
+            pass
+        messages.success(request, f'Pastas padrão de {empresa.nome} atualizadas!')
+        return redirect('clientes_dashboard')
+
+    templates = list(PastaTemplateEmpresa.objects.filter(empresa=empresa).values_list('nome', flat=True))
+
+    return render(request, 'checklists/config_pastas.html', {
+        'empresa': empresa,
+        'templates_json': json.dumps(templates) if templates else '["Materiais","Criativos","Documentos"]',
+    })
+
+
+@login_required
+def pasta_detalhe_interno(request, pasta_id):
+    """Página dedicada de pasta no painel interno"""
+    from core.models import PastaCliente
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    pasta = get_object_or_404(PastaCliente, id=pasta_id)
+    empresas = get_empresas_filtradas(pessoa, request)
+    if pasta.cliente.empresa not in empresas:
+        return redirect('dashboard')
+
+    arquivos = pasta.arquivos_pasta.all().order_by('-criado_em')
+    subpastas = PastaCliente.objects.filter(pasta_pai=pasta).order_by('nome')
+
+    # Breadcrumb
+    breadcrumb = []
+    p = pasta
+    while p:
+        breadcrumb.insert(0, p)
+        p = p.pasta_pai
+
+    return render(request, 'checklists/pasta_detalhe.html', {
+        'pessoa': pessoa,
+        'pasta': pasta,
+        'cliente': pasta.cliente,
+        'arquivos': arquivos,
+        'subpastas': subpastas,
+        'breadcrumb': breadcrumb,
+    })
+
+
+@login_required
+@require_POST
+def criar_subpasta(request, pasta_id):
+    """Cria subpasta dentro de uma pasta"""
+    from core.models import PastaCliente
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    pasta_pai = get_object_or_404(PastaCliente, id=pasta_id)
+    nome = request.POST.get('nome', '').strip()
+    if nome:
+        PastaCliente.objects.create(
+            cliente=pasta_pai.cliente, nome=nome, pasta_pai=pasta_pai,
+        )
+    return redirect('pasta_detalhe_interno', pasta_id=pasta_pai.id)
+
+
+@login_required
+@require_POST
+def upload_pasta(request, pasta_id):
+    """Upload de arquivos em uma pasta do cliente"""
+    from core.models import PastaCliente, ArquivoPasta
+    pessoa = get_pessoa_or_redirect(request)
+    pasta = get_object_or_404(PastaCliente, id=pasta_id)
+
+    arquivos = request.FILES.getlist('arquivos')
+    nome_enviador = pessoa.nome if pessoa else 'Equipe'
+
+    for arq in arquivos:
+        ArquivoPasta.objects.create(
+            pasta=pasta, arquivo=arq, nome_original=arq.name,
+            tamanho=arq.size, enviado_por=nome_enviador, enviado_por_cliente=False,
+        )
+
+    messages.success(request, f'{len(arquivos)} arquivo(s) enviado(s)!')
+    return redirect('cliente_detalhe', cliente_id=pasta.cliente_id)
+
+
+@login_required
+@require_POST
+def criar_pasta_cliente(request, cliente_id):
+    """Cria nova pasta para um cliente"""
+    from core.models import PastaCliente
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    cliente = get_object_or_404(Cliente, id=cliente_id, empresa__in=empresas)
+    nome = request.POST.get('nome', '').strip()
+    pasta_pai_id = request.POST.get('pasta_pai') or None
+
+    if nome:
+        PastaCliente.objects.create(
+            cliente=cliente, nome=nome,
+            pasta_pai_id=pasta_pai_id,
+        )
+        messages.success(request, f'Pasta "{nome}" criada!')
+
+    return redirect('cliente_detalhe', cliente_id=cliente.id)
+
+
+# ============================================
+# PORTAL DO CLIENTE (acesso externo)
+# ============================================
+
+def portal_login(request):
+    """Login do portal do cliente"""
+    if request.method == 'POST':
+        from django.contrib.auth import authenticate, login
+        from core.models import ContatoCliente
+        email = request.POST.get('email', '').strip()
+        senha = request.POST.get('senha', '')
+        user = authenticate(request, username=email, password=senha)
+        if user and ContatoCliente.objects.filter(user=user).exists():
+            login(request, user)
+            return redirect('portal_home')
+        messages.error(request, 'Email ou senha inválidos.')
+    return render(request, 'portal/login.html')
+
+
+@login_required
+def portal_home(request):
+    """Home do portal do cliente com dashboard"""
+    from core.models import ContatoCliente, Solicitacao, PastaCliente
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    cliente = contato.cliente
+    pastas = PastaCliente.objects.filter(cliente=cliente, pasta_pai__isnull=True).order_by('nome')
+
+    if contato.papel == 'dono':
+        solicitacoes = Solicitacao.objects.filter(cliente=cliente)
+    else:
+        solicitacoes = Solicitacao.objects.filter(
+            Q(cliente=cliente, contato__isnull=True) | Q(contato=contato)
+        )
+
+    solicitacoes = solicitacoes.exclude(status='cancelado').select_related('contato').prefetch_related('arquivos', 'comentarios')
+    pendentes = solicitacoes.filter(status__in=['pendente', 'em_andamento']).order_by('prazo')
+    concluidas = solicitacoes.filter(status='concluido').order_by('-concluido_em')
+
+    # Dashboard stats
+    atrasadas = [s for s in pendentes if s.esta_atrasada]
+    vencendo_semana = [s for s in pendentes if not s.esta_atrasada and s.prazo and s.prazo <= timezone.now() + timedelta(days=7)]
+    total_mes = solicitacoes.filter(criado_em__month=timezone.localdate().month).count()
+    concluidas_mes = concluidas.filter(concluido_em__month=timezone.localdate().month).count()
+
+    context = {
+        'contato': contato,
+        'cliente': cliente,
+        'pendentes': pendentes,
+        'concluidas': concluidas[:10],
+        'total_pendentes': pendentes.count(),
+        'atrasadas': len(atrasadas),
+        'vencendo_semana': len(vencendo_semana),
+        'total_mes': total_mes,
+        'concluidas_mes': concluidas_mes,
+        'pastas': pastas,
+    }
+    return render(request, 'portal/home.html', context)
+
+
+@login_required
+@require_POST
+def portal_responder(request, sol_id):
+    """Contato do cliente responde/conclui uma solicitação"""
+    from core.models import ContatoCliente, Solicitacao, ArquivoSolicitacao
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    from core.models import ComentarioSolicitacao
+
+    sol = get_object_or_404(Solicitacao, id=sol_id, cliente=contato.cliente)
+
+    # Comentário
+    texto = request.POST.get('resposta', '').strip()
+    if texto:
+        ComentarioSolicitacao.objects.create(
+            solicitacao=sol,
+            autor_nome=contato.nome,
+            autor_is_cliente=True,
+            texto=texto,
+        )
+
+    # Upload múltiplo de arquivos com organização em pasta
+    from core.models import PastaCliente, ArquivoPasta
+    arquivos = request.FILES.getlist('arquivos')
+    pasta_id = request.POST.get('pasta') or None
+    pasta = None
+    if pasta_id:
+        pasta = PastaCliente.objects.filter(id=pasta_id, cliente=contato.cliente).first()
+
+    for arq in arquivos:
+        # Salvar na solicitação
+        arq_sol = ArquivoSolicitacao.objects.create(
+            solicitacao=sol,
+            pasta=pasta,
+            arquivo=arq,
+            nome_original=arq.name,
+            tamanho=arq.size,
+            enviado_por_cliente=True,
+            enviado_por_nome=contato.nome,
+        )
+        # Salvar também na pasta do Drive (se pasta selecionada)
+        if pasta:
+            ArquivoPasta.objects.create(
+                pasta=pasta,
+                arquivo=arq_sol.arquivo,
+                nome_original=arq.name,
+                tamanho=arq.size,
+                enviado_por=contato.nome,
+                enviado_por_cliente=True,
+            )
+
+    marcar_concluido = request.POST.get('concluir')
+    if marcar_concluido:
+        sol.status = 'concluido'
+        sol.concluido_em = timezone.now()
+
+    sol.save()
+    messages.success(request, 'Enviado com sucesso!')
+    return redirect('portal_home')
+
+
+@login_required
+@require_POST
+def portal_upload_pasta(request, pasta_id):
+    """Cliente faz upload em uma pasta"""
+    from core.models import ContatoCliente, PastaCliente, ArquivoPasta
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    pasta = get_object_or_404(PastaCliente, id=pasta_id, cliente=contato.cliente)
+
+    arquivos = request.FILES.getlist('arquivos')
+    for arq in arquivos:
+        ArquivoPasta.objects.create(
+            pasta=pasta, arquivo=arq, nome_original=arq.name,
+            tamanho=arq.size, enviado_por=contato.nome, enviado_por_cliente=True,
+        )
+
+    messages.success(request, f'{len(arquivos)} arquivo(s) enviado(s)!')
+    return redirect('portal_arquivos')
+
+
+@login_required
+def portal_arquivos(request):
+    """Página de arquivos/pastas do cliente no portal"""
+    from core.models import ContatoCliente, PastaCliente
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    cliente = contato.cliente
+    pastas = PastaCliente.objects.filter(cliente=cliente, pasta_pai__isnull=True).prefetch_related('arquivos_pasta')
+
+    return render(request, 'portal/arquivos.html', {
+        'contato': contato,
+        'cliente': cliente,
+        'pastas': pastas,
+    })
+
+
+@login_required
+def portal_pasta_detalhe(request, pasta_id):
+    """Página dedicada de uma pasta com preview de arquivos"""
+    from core.models import ContatoCliente, PastaCliente
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    pasta = get_object_or_404(PastaCliente, id=pasta_id, cliente=contato.cliente)
+    arquivos = pasta.arquivos_pasta.all().order_by('-criado_em')
+
+    return render(request, 'portal/pasta_detalhe.html', {
+        'contato': contato,
+        'cliente': contato.cliente,
+        'pasta': pasta,
+        'arquivos': arquivos,
+    })
+
+
+@login_required
+@require_POST
+def portal_criar_pasta(request):
+    """Cliente cria uma subpasta"""
+    from core.models import ContatoCliente, PastaCliente
+
+    contato = ContatoCliente.objects.filter(user=request.user).first()
+    if not contato:
+        return redirect('portal_login')
+
+    nome = request.POST.get('nome', '').strip()
+    pasta_pai_id = request.POST.get('pasta_pai') or None
+
+    if nome:
+        PastaCliente.objects.create(
+            cliente=contato.cliente, nome=nome,
+            pasta_pai_id=pasta_pai_id, criada_por_cliente=True,
+        )
+
+    return redirect('portal_arquivos')
+
+
+# ===========================================================
+# DRIVE INTERNO (Arquivos da Empresa)
+# ===========================================================
+
+@login_required
+def drive(request):
+    """Drive de arquivos internos da empresa"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    empresa_id = request.GET.get('empresa', '')
+
+    if empresa_id:
+        empresa_selecionada = empresas.filter(id=empresa_id).first()
+    elif empresas.count() == 1:
+        empresa_selecionada = empresas.first()
+    else:
+        empresa_selecionada = None
+
+    pastas = []
+    if empresa_selecionada:
+        pastas = PastaEmpresa.objects.filter(
+            empresa=empresa_selecionada, pasta_pai__isnull=True
+        ).prefetch_related('arquivos', 'subpastas').order_by('ordem', 'nome')
+
+    context = {
+        'pessoa': pessoa,
+        'empresas': empresas,
+        'empresa_selecionada': empresa_selecionada,
+        'empresa_id': empresa_id,
+        'pastas': pastas,
+    }
+    return render(request, 'checklists/drive.html', context)
+
+
+@login_required
+@require_POST
+def drive_criar_pasta(request):
+    """Cria uma nova pasta no Drive"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('drive')
+
+    empresa_id = request.POST.get('empresa')
+    nome = request.POST.get('nome', '').strip()
+    pasta_pai_id = request.POST.get('pasta_pai') or None
+    cor = request.POST.get('cor', '#f59e0b')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    empresa = empresas.filter(id=empresa_id).first()
+    if not empresa or not nome:
+        messages.error(request, 'Empresa e nome são obrigatórios.')
+        return redirect('drive')
+
+    PastaEmpresa.objects.create(
+        empresa=empresa,
+        nome=nome,
+        pasta_pai_id=pasta_pai_id,
+        criado_por=pessoa,
+        cor=cor,
+    )
+    messages.success(request, f'Pasta "{nome}" criada!')
+    return redirect(f'{request.META.get("HTTP_REFERER", "/drive/")}')
+
+
+@login_required
+@require_POST
+def drive_upload(request, pasta_id):
+    """Upload de arquivos para uma pasta do Drive"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('drive')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    pasta = get_object_or_404(PastaEmpresa, id=pasta_id, empresa__in=empresas)
+
+    arquivos = request.FILES.getlist('arquivos')
+    count = 0
+    for arq in arquivos:
+        if arq.size > 52428800:  # 50MB
+            messages.warning(request, f'{arq.name} excede 50MB.')
+            continue
+        ArquivoEmpresa.objects.create(
+            pasta=pasta,
+            arquivo=arq,
+            nome_original=arq.name,
+            tamanho=arq.size,
+            enviado_por=pessoa,
+        )
+        count += 1
+
+    if count:
+        messages.success(request, f'{count} arquivo(s) enviado(s)!')
+    return redirect(request.META.get('HTTP_REFERER', '/drive/'))
+
+
+@login_required
+@require_POST
+def drive_excluir_arquivo(request, arquivo_id):
+    """Exclui um arquivo do Drive"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('drive')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    arq = get_object_or_404(ArquivoEmpresa, id=arquivo_id, pasta__empresa__in=empresas)
+    nome = arq.nome_original
+    arq.arquivo.delete(save=False)
+    arq.delete()
+    messages.success(request, f'Arquivo "{nome}" excluído.')
+    return redirect(request.META.get('HTTP_REFERER', '/drive/'))
+
+
+@login_required
+@require_POST
+def drive_excluir_pasta(request, pasta_id):
+    """Exclui uma pasta e todos os arquivos"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa or not pessoa.eh_gestor:
+        return redirect('drive')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    pasta = get_object_or_404(PastaEmpresa, id=pasta_id, empresa__in=empresas)
+    nome = pasta.nome
+    # Deletar arquivos do storage
+    for arq in pasta.arquivos.all():
+        arq.arquivo.delete(save=False)
+    pasta.delete()
+    messages.success(request, f'Pasta "{nome}" excluída.')
+    return redirect(request.META.get('HTTP_REFERER', '/drive/'))
+
+
+@login_required
+@require_POST
+def drive_renomear_pasta(request, pasta_id):
+    """Renomeia uma pasta"""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('drive')
+
+    empresas = get_empresas_filtradas(pessoa, request)
+    pasta = get_object_or_404(PastaEmpresa, id=pasta_id, empresa__in=empresas)
+    novo_nome = request.POST.get('nome', '').strip()
+    if novo_nome:
+        pasta.nome = novo_nome
+        pasta.save()
+    return redirect(request.META.get('HTTP_REFERER', '/drive/'))

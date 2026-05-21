@@ -101,7 +101,11 @@
             <p id="erro-atribuicao" class="text-xs text-red-500 mt-2 hidden">Selecione pelo menos um responsavel ou cargo!</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Horario sugerido</label>
+                <input type="time" name="horario_sugerido" class="w-full px-3 py-2 border rounded-lg text-sm">
+            </div>
             <div>
                 <label class="block text-sm text-gray-600 mb-1">Ordem de execucao</label>
                 <input type="number" name="ordem_execucao" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
@@ -122,6 +126,20 @@
                     <option value="3">Alta</option>
                 </select>
             </div>
+        </div>
+
+        <div x-data="{ subs: [''] }">
+            <label class="block text-sm text-gray-600 mb-2">Subtarefas</label>
+            <template x-for="(s, i) in subs" :key="i">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-gray-400 w-4" x-text="i+1"></span>
+                    <input type="text" x-model="subs[i]" placeholder="Ex: Abrir planilha, Conferir dados..."
+                           class="flex-1 px-3 py-2 border rounded-lg text-sm">
+                    <button type="button" @click="subs.splice(i,1)" x-show="subs.length>1" class="text-red-400 hover:text-red-600 text-lg px-1">&times;</button>
+                </div>
+            </template>
+            <button type="button" @click="subs.push('')" class="text-sm text-indigo-600 hover:text-indigo-800">+ Adicionar subtarefa</button>
+            <input type="hidden" name="subtarefas_json" :value="JSON.stringify(subs.filter(s=>s.trim()))">
         </div>
 
         <div class="pt-4 border-t">

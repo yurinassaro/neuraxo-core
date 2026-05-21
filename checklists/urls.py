@@ -29,6 +29,7 @@ urlpatterns = [
     path('subtarefa/toggle/<int:subtarefa_id>/', views.toggle_subtarefa, name='toggle_subtarefa'),
     path('subtarefa/excluir/<int:subtarefa_id>/', views.excluir_subtarefa, name='excluir_subtarefa'),
     path('subtarefa/sincronizar/<int:item_id>/', views.sincronizar_subtarefas, name='sincronizar_subtarefas'),
+    path('subtarefa/reordenar/<int:item_id>/', views.reordenar_subtarefas, name='reordenar_subtarefas'),
 
     # Status e Dependência (Rotina)
     path('status/<int:item_id>/', views.mudar_status, name='mudar_status'),
@@ -41,6 +42,7 @@ urlpatterns = [
     path('despausar/<int:item_id>/', views.despausar_tarefa, name='despausar_tarefa'),
     path('pessoas/', views.listar_pessoas, name='listar_pessoas'),
     path('pessoas/<int:empresa_id>/', views.listar_pessoas_empresa, name='listar_pessoas_empresa'),
+    path('api/clientes/empresa/<int:empresa_id>/', views.listar_clientes_empresa, name='listar_clientes_empresa'),
     path('pessoas-externas/', views.buscar_pessoas_externas, name='buscar_pessoas_externas'),
 
     # ============================================
@@ -70,6 +72,7 @@ urlpatterns = [
     path('demanda/<int:demanda_id>/subtarefa/', views.adicionar_subtarefa_demanda, name='adicionar_subtarefa_demanda'),
     path('demanda/subtarefa/<int:subtarefa_id>/toggle/', views.toggle_subtarefa_demanda, name='toggle_subtarefa_demanda'),
     path('demanda/subtarefa/<int:subtarefa_id>/excluir/', views.excluir_subtarefa_demanda, name='excluir_subtarefa_demanda'),
+    path('demanda/<int:demanda_id>/subtarefas/reordenar/', views.reordenar_subtarefas_demanda, name='reordenar_subtarefas_demanda'),
 
     # Dependência (Demanda)
     path('demanda/<int:demanda_id>/dependencia/', views.marcar_dependente_demanda, name='marcar_dependente_demanda'),
@@ -113,12 +116,21 @@ urlpatterns = [
     path('rotinas/', views.lista_rotinas, name='lista_rotinas'),
     path('rotinas/nova/', views.criar_rotina, name='criar_rotina'),
     path('rotinas/<int:template_id>/editar/', views.editar_rotina, name='editar_rotina'),
+    path('rotinas/<int:template_id>/excluir/', views.excluir_rotina_template, name='excluir_rotina_template'),
 
     # Anotações / Bloco de Notas
     path('anotacoes/', views.anotacoes, name='anotacoes'),
     path('anotacoes/<int:anotacao_id>/editar/', views.editar_anotacao, name='editar_anotacao'),
     path('anotacoes/<int:anotacao_id>/excluir/', views.excluir_anotacao, name='excluir_anotacao'),
     path('anotacoes/<int:anotacao_id>/fixar/', views.fixar_anotacao, name='fixar_anotacao'),
+
+    # Drive Interno
+    path('drive/', views.drive, name='drive'),
+    path('drive/pasta/criar/', views.drive_criar_pasta, name='drive_criar_pasta'),
+    path('drive/pasta/<int:pasta_id>/upload/', views.drive_upload, name='drive_upload'),
+    path('drive/pasta/<int:pasta_id>/excluir/', views.drive_excluir_pasta, name='drive_excluir_pasta'),
+    path('drive/pasta/<int:pasta_id>/renomear/', views.drive_renomear_pasta, name='drive_renomear_pasta'),
+    path('drive/arquivo/<int:arquivo_id>/excluir/', views.drive_excluir_arquivo, name='drive_excluir_arquivo'),
 
     # Cofre de Senhas
     path('cofre/', views.cofre, name='cofre'),
@@ -131,6 +143,48 @@ urlpatterns = [
     # Calendário
     path('calendario/', views.calendario, name='calendario'),
     path('api/calendario/eventos/', views.calendario_eventos, name='calendario_eventos'),
+
+    # API Rotinas
+    path('api/rotinas/reordenar/', views.reordenar_rotinas, name='reordenar_rotinas'),
+
+    # Notificações
+    path('notificacoes/', views.notificacoes, name='notificacoes'),
+    path('notificacoes/count/', views.notificacoes_count, name='notificacoes_count'),
+    path('notificacoes/<int:notif_id>/lida/', views.notificacao_marcar_lida, name='notificacao_marcar_lida'),
+    path('notificacoes/marcar-todas/', views.notificacoes_marcar_todas, name='notificacoes_marcar_todas'),
+
+    # Equipe
+    path('equipe/', views.equipe, name='equipe'),
+    path('equipe/convidar/', views.convidar_membro, name='convidar_membro'),
+    path('equipe/<int:pessoa_id>/editar/', views.editar_membro, name='editar_membro'),
+
+    # Empresas
+    path('empresas/', views.lista_empresas, name='lista_empresas'),
+    path('empresas/criar/', views.criar_empresa, name='criar_empresa'),
+    path('empresas/<int:empresa_id>/editar/', views.editar_empresa, name='editar_empresa'),
+
+    # Clientes e Solicitações
+    path('clientes/', views.clientes_dashboard, name='clientes_dashboard'),
+    path('clientes/novo/', views.criar_cliente, name='criar_cliente'),
+    path('clientes/<int:cliente_id>/', views.cliente_detalhe, name='cliente_detalhe'),
+    path('clientes/<int:cliente_id>/editar/', views.editar_cliente, name='editar_cliente'),
+    path('clientes/<int:cliente_id>/contato/', views.criar_contato_cliente, name='criar_contato_cliente'),
+    path('solicitacao/criar/', views.criar_solicitacao, name='criar_solicitacao'),
+    path('solicitacao/<int:sol_id>/status/', views.solicitacao_status, name='solicitacao_status'),
+    path('clientes/empresa/<int:empresa_id>/pastas/', views.config_pastas_empresa, name='config_pastas_empresa'),
+    path('clientes/<int:cliente_id>/pasta/nova/', views.criar_pasta_cliente, name='criar_pasta_cliente'),
+    path('pasta/<int:pasta_id>/', views.pasta_detalhe_interno, name='pasta_detalhe_interno'),
+    path('pasta/<int:pasta_id>/upload/', views.upload_pasta, name='upload_pasta'),
+    path('pasta/<int:pasta_id>/subpasta/', views.criar_subpasta, name='criar_subpasta'),
+
+    # Portal do Cliente
+    path('portal/', views.portal_home, name='portal_home'),
+    path('portal/login/', views.portal_login, name='portal_login'),
+    path('portal/<int:sol_id>/responder/', views.portal_responder, name='portal_responder'),
+    path('portal/arquivos/', views.portal_arquivos, name='portal_arquivos'),
+    path('portal/arquivos/<int:pasta_id>/', views.portal_pasta_detalhe, name='portal_pasta_detalhe'),
+    path('portal/arquivos/<int:pasta_id>/upload/', views.portal_upload_pasta, name='portal_upload_pasta'),
+    path('portal/arquivos/nova-pasta/', views.portal_criar_pasta, name='portal_criar_pasta'),
 
     # Auth
     path('login/', auth_views.LoginView.as_view(template_name='checklists/login.html'), name='login'),

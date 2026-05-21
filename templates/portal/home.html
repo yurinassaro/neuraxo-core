@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ cliente.nome }} - Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3" defer></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-indigo-600 text-white shadow-lg">
+        <div class="w-full px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="font-bold text-lg">{{ cliente.nome }}</h1>
+                <p class="text-indigo-200 text-sm">{{ contato.nome }} {% if contato.funcao %}- {{ contato.funcao }}{% endif %}</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-semibold">Pendencias</span>
+                <span class="text-indigo-400">|</span>
+                <a href="{% url 'portal_arquivos' %}" class="text-sm text-indigo-200 hover:text-white">Arquivos</a>
+                <span class="text-indigo-400">|</span>
+                <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button type="submit" class="text-sm bg-indigo-700 px-3 py-1.5 rounded hover:bg-indigo-800">Sair</button></form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="w-full py-6 px-4">
+
+        {% if messages %}
+        {% for msg in messages %}
+        <div class="bg-green-100 text-green-800 p-3 rounded-lg mb-4 text-sm">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Dashboard Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-xl shadow p-4 {% if atrasadas > 0 %}border-2 border-red-400 animate-pulse{% endif %}">
+                <p class="text-xs text-gray-500 uppercase">Atrasadas</p>
+                <p class="text-3xl font-bold {% if atrasadas > 0 %}text-red-600{% else %}text-gray-300{% endif %}">{{ atrasadas }}</p>
+                {% if atrasadas > 0 %}<p class="text-xs text-red-500 mt-1">Precisam de atencao!</p>{% endif %}
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+                <p class="text-xs text-gray-500 uppercase">Pendentes</p>
+                <p class="text-3xl font-bold text-yellow-600">{{ total_pendentes }}</p>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+                <p class="text-xs text-gray-500 uppercase">Vencendo esta semana</p>
+                <p class="text-3xl font-bold text-orange-500">{{ vencendo_semana }}</p>
+            </div>
+            <div class="bg-white rounded-xl shadow p-4">
+                <p class="text-xs text-gray-500 uppercase">Concluidas no mes</p>
+                <p class="text-3xl font-bold text-green-600">{{ concluidas_mes }}</p>
+                {% if total_mes > 0 %}
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div class="bg-green-500 h-1.5 rounded-full" style="width: {% widthratio concluidas_mes total_mes 100 %}%"></div>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">{{ concluidas_mes }}/{{ total_mes }} este mes</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Solicitações Pendentes -->
+        {% if pendentes %}
+        <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Suas Pendencias ({{ total_pendentes }})
+        </h2>
+
+        {% for s in pendentes %}
+        <div class="bg-white rounded-xl shadow mb-4 overflow-hidden border-l-4 {% if s.esta_atrasada %}border-red-500{% else %}border-yellow-400{% endif %}" x-data="{ expanded: false }">
+            <!-- Header da solicitação -->
+            <button @click="expanded = !expanded" class="w-full text-left p-5 hover:bg-gray-50 transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center flex-wrap gap-2 mb-1">
+                            {% if s.esta_atrasada %}
+                            <span class="px-2 py-0.5 text-xs rounded bg-red-500 text-white font-bold animate-pulse">ATRASADA</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs rounded bg-yellow-100 text-yellow-700">Pendente</span>
+                            {% endif %}
+                            <span class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded">{{ s.get_tipo_display }}</span>
+                            {% if s.contato %}<span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">{{ s.contato.nome }}{% if s.contato.funcao %} ({{ s.contato.funcao }}){% endif %}</span>{% endif %}
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800">{{ s.titulo }}</h3>
+                        <p class="text-sm mt-1 {% if s.esta_atrasada %}text-red-600 font-bold{% elif s.prazo %}text-gray-500{% else %}text-gray-400{% endif %}">
+                            {% if s.prazo %}
+                                {% if s.esta_atrasada %}
+                                Venceu em {{ s.prazo|date:"d/m/Y" }} ({{ s.prazo|timesince }} de atraso)
+                                {% else %}
+                                Entregar ate: {{ s.prazo|date:"d/m/Y H:i" }}
+                                {% endif %}
+                            {% else %}
+                                Sem prazo definido
+                            {% endif %}
+                        </p>
+                    </div>
+                    <svg :class="expanded ? 'rotate-180' : ''" class="w-5 h-5 text-gray-400 transition-transform ml-4 mt-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+            </button>
+
+            <!-- Conteúdo expandido -->
+            <div x-show="expanded" x-transition class="border-t px-5 pb-5">
+                {% if s.descricao %}
+                <div class="bg-indigo-50 rounded-lg p-3 mt-3 text-sm text-indigo-800">
+                    <p class="text-xs text-indigo-500 font-semibold mb-1">Detalhes da solicitacao:</p>
+                    {{ s.descricao }}
+                </div>
+                {% endif %}
+
+                <!-- Arquivos existentes -->
+                {% if s.arquivos.exists %}
+                <div class="mt-3">
+                    <p class="text-xs text-gray-500 font-semibold mb-2">Arquivos:</p>
+                    <div class="space-y-1">
+                        {% for a in s.arquivos.all %}
+                        <a href="{{ a.arquivo.url }}" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 text-sm">
+                            {% if a.is_imagem %}
+                            <img src="{{ a.arquivo.url }}" class="w-8 h-8 rounded object-cover flex-shrink-0">
+                            {% else %}
+                            <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            {% endif %}
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1">
+                                    {% if a.pasta %}
+                                    <span class="text-xs text-yellow-600">📁 {{ a.pasta.nome }} ></span>
+                                    {% endif %}
+                                    <p class="text-xs text-gray-800 truncate">{{ a.nome_original }}</p>
+                                </div>
+                                <p class="text-xs text-gray-400">{{ a.enviado_por_nome|default:"Equipe" }} | {{ a.tamanho_formatado }}</p>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Historico de comentários -->
+                {% if s.comentarios.exists %}
+                <div class="mt-4 space-y-2">
+                    <p class="text-xs text-gray-500 font-semibold">Conversacao:</p>
+                    {% for c in s.comentarios.all %}
+                    <div class="flex gap-2 {% if c.autor_is_cliente %}justify-end{% endif %}">
+                        <div class="max-w-[80%] p-3 rounded-lg text-sm {% if c.autor_is_cliente %}bg-indigo-100 text-indigo-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            <p class="text-xs font-semibold mb-1 {% if c.autor_is_cliente %}text-indigo-600{% else %}text-gray-500{% endif %}">{{ c.autor_nome }}</p>
+                            {{ c.texto }}
+                            <p class="text-xs opacity-50 mt-1">{{ c.criado_em|timesince }} atras</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Formulário de resposta -->
+                <form method="post" action="{% url 'portal_responder' s.id %}" enctype="multipart/form-data" class="mt-4 border-t pt-4"
+                      x-data="{ files: [], dragover: false, hasFiles: false }">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <textarea name="resposta" rows="2" placeholder="Escreva uma mensagem..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+                    <!-- Selecionar pasta para organizar arquivos -->
+                    <div class="mb-3" x-show="hasFiles">
+                        <label class="block text-xs text-gray-500 mb-1">Salvar arquivos na pasta:</label>
+                        <select name="pasta" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                            <option value="">Sem pasta (solto)</option>
+                            {% for p in pastas %}
+                            <option value="{{ p.id }}">📁 {{ p.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="relative border-2 border-dashed rounded-xl p-6 text-center transition-colors"
+                             :class="dragover ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'"
+                             @dragover.prevent="dragover = true"
+                             @dragleave="dragover = false"
+                             @drop.prevent="
+                                dragover = false;
+                                const input = $refs.fileInput{{ s.id }};
+                                const dt = new DataTransfer();
+                                for (const f of input.files) dt.items.add(f);
+                                for (const f of $event.dataTransfer.files) {
+                                    if (f.size > 52428800) { alert(f.name + ' excede 50MB'); continue; }
+                                    dt.items.add(f);
+                                }
+                                input.files = dt.files;
+                                files = Array.from(dt.files); hasFiles = files.length > 0;
+                             ">
+                            <input type="file" name="arquivos" multiple x-ref="fileInput{{ s.id }}" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                   @change="
+                                      const dt = new DataTransfer();
+                                      for (const f of $event.target.files) {
+                                          if (f.size > 52428800) { alert(f.name + ' excede 50MB'); continue; }
+                                          dt.items.add(f);
+                                      }
+                                      $event.target.files = dt.files;
+                                      files = Array.from(dt.files); hasFiles = files.length > 0;
+                                   ">
+                            <div x-show="files.length === 0">
+                                <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <p class="text-sm text-gray-500">Arraste arquivos aqui ou <span class="text-indigo-600 font-medium">clique para selecionar</span></p>
+                                <p class="text-xs text-gray-400 mt-1">Maximo 50MB por arquivo</p>
+                            </div>
+                            <div x-show="files.length > 0" class="text-left">
+                                <template x-for="(f, i) in files" :key="i">
+                                    <div class="flex items-center justify-between py-1">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                            <span class="text-sm text-gray-700 truncate" x-text="f.name"></span>
+                                            <span class="text-xs text-gray-400 flex-shrink-0" x-text="(f.size/1024/1024).toFixed(1) + ' MB'"></span>
+                                        </div>
+                                        <button type="button" @click="
+                                            const dt = new DataTransfer();
+                                            files.splice(i, 1);
+                                            for (const ff of files) dt.items.add(ff);
+                                            $refs.fileInput{{ s.id }}.files = dt.files;
+                                        " class="text-red-400 hover:text-red-600 ml-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </template>
+                                <p class="text-xs text-indigo-600 mt-2 cursor-pointer">+ Adicionar mais arquivos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Enviar</button>
+                        <button type="submit" name="concluir" value="1" class="px-4 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600">Concluir Solicitacao</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <div class="bg-white rounded-xl shadow p-12 text-center">
+            <svg class="w-20 h-20 mx-auto text-green-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xl font-semibold text-gray-600">Tudo em dia!</p>
+            <p class="text-gray-400 mt-1">Nenhuma pendencia no momento.</p>
+        </div>
+        {% endif %}
+
+        <!-- Concluídas -->
+        {% if concluidas %}
+        <div class="mt-8" x-data="{ showConcluidas: false }">
+            <button @click="showConcluidas = !showConcluidas" class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-3">
+                <svg :class="showConcluidas ? 'rotate-90' : ''" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Concluidas ({{ concluidas|length }})
+            </button>
+            <div x-show="showConcluidas" x-transition class="space-y-2">
+                {% for s in concluidas %}
+                <div class="bg-white rounded-lg shadow p-3 opacity-60 flex items-center justify-between">
+                    <div>
+                        <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded mr-2">Concluido</span>
+                        <span class="text-sm text-gray-700">{{ s.titulo }}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">{{ s.concluido_em|date:"d/m/Y" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</body>
+</html>

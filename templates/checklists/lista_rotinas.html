@@ -44,6 +44,7 @@
 </div>
 {% endif %}
 
+{% csrf_token %}
 <!-- Lista de rotinas por empresa -->
 {% regroup rotinas by empresa as rotinas_por_empresa %}
 {% for grupo in rotinas_por_empresa %}
@@ -53,8 +54,9 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 text-gray-500 text-left">
                 <tr>
-                    <th class="px-4 py-3">Ordem</th>
+                    <th class="px-2 py-3 w-8"></th>
                     <th class="px-4 py-3">Titulo</th>
+                    <th class="px-4 py-3">Horario</th>
                     <th class="px-4 py-3">Recorrencia</th>
                     <th class="px-4 py-3">Responsavel</th>
                     <th class="px-4 py-3">Tempo Est.</th>
@@ -63,11 +65,14 @@
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="sortable-rotinas">
                 {% for r in grupo.list %}
-                <tr class="border-t {% if not r.ativo %}opacity-50{% endif %}">
-                    <td class="px-4 py-3 text-gray-400">{{ r.ordem_execucao }}</td>
+                <tr class="border-t {% if not r.ativo %}opacity-50{% endif %} hover:bg-gray-50 dark:hover:bg-gray-700" data-id="{{ r.id }}">
+                    <td class="px-2 py-3 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
+                    </td>
                     <td class="px-4 py-3 font-semibold">{{ r.titulo }}</td>
+                    <td class="px-4 py-3 text-gray-500">{% if r.horario_sugerido %}{{ r.horario_sugerido|time:"H:i" }}{% else %}-{% endif %}</td>
                     <td class="px-4 py-3">
                         {{ r.get_recorrencia_display }}
                         {% if r.dia_semana != None %}<span class="text-xs text-gray-400">({{ r.get_dia_semana_display }})</span>{% endif %}
@@ -89,7 +94,11 @@
                         {% else %}<span class="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">Inativo</span>{% endif %}
                     </td>
                     <td class="px-4 py-3">
+                        {% if pessoa.eh_gestor or r.criado_por == pessoa %}
                         <a href="{% url 'editar_rotina' r.id %}" class="text-indigo-600 hover:underline text-sm">Editar</a>
+                        {% else %}
+                        <span class="text-gray-400 text-xs">Gestor</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -103,4 +112,30 @@
     <a href="{% url 'criar_rotina' %}" class="text-indigo-600 hover:underline mt-2 inline-block">Criar primeira rotina</a>
 </div>
 {% endfor %}
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.querySelectorAll('.sortable-rotinas').forEach(tbody => {
+    new Sortable(tbody, {
+        animation: 150,
+        handle: 'td:first-child',
+        ghostClass: 'bg-indigo-50',
+        onEnd: function() {
+            const ids = [...tbody.querySelectorAll('tr[data-id]')].map((tr, i) => ({
+                id: tr.dataset.id,
+                ordem: i
+            }));
+            fetch('/api/rotinas/reordenar/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                   document.cookie.match(/csrftoken=([^;]+)/)?.[1] || ''
+                },
+                body: JSON.stringify({ items: ids })
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

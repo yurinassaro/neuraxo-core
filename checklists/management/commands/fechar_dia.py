@@ -1,6 +1,5 @@
 """
 Comando para fechar o dia e calcular aproveitamento.
-Deve ser executado às 23:59 via cron/celery.
 
 Uso:
     python manage.py fechar_dia
@@ -8,14 +7,12 @@ Uso:
 """
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db import connection
-from datetime import datetime, timedelta
+from datetime import datetime
 from checklists.models import (
-    ChecklistItem, ChecklistTemplate, StatusItem,
+    ChecklistItem, StatusItem,
     AproveitamentoDiario, TarefaNaoConcluida
 )
 from core.models import Pessoa
-from tenants.models import Client
 
 
 class Command(BaseCommand):
@@ -36,68 +33,49 @@ class Command(BaseCommand):
 
         self.stdout.write(f'Fechando dia {data}...\n')
 
-        # Iterar por todos os tenants (exceto public)
-        tenants = Client.objects.exclude(schema_name='public')
+        total_pessoas = 0
+        total_tarefas_fechadas = 0
 
-        for tenant in tenants:
-            self.stdout.write(f'\n[{tenant.nome}] Schema: {tenant.schema_name}')
+        pessoas = Pessoa.objects.filter(ativo=True)
 
-            # Mudar para o schema do tenant
-            connection.set_tenant(tenant)
+        for pessoa in pessoas:
+            items = ChecklistItem.objects.filter(
+                responsavel=pessoa,
+                data_referencia=data,
+                dia_fechado=False
+            )
 
-            total_pessoas = 0
-            total_tarefas_fechadas = 0
+            if not items.exists():
+                continue
 
-            # Buscar todas as pessoas ativas
-            pessoas = Pessoa.objects.filter(ativo=True)
+            total_pessoas += 1
 
-            for pessoa in pessoas:
-                # Buscar tarefas do dia desta pessoa
-                items = ChecklistItem.objects.filter(
-                    responsavel=pessoa,
-                    data_referencia=data,
-                    dia_fechado=False
-                )
+            aproveitamento = AproveitamentoDiario.calcular_para_pessoa(pessoa, data)
+            aproveitamento.fechado_em = timezone.now()
+            aproveitamento.save()
 
-                if not items.exists():
-                    continue
+            for item in items:
+                item.dia_fechado = True
 
-                total_pessoas += 1
+                if item.status != StatusItem.CONCLUIDO:
+                    TarefaNaoConcluida.objects.get_or_create(
+                        checklist_item=item,
+                        aproveitamento=aproveitamento,
+                        defaults={
+                            'justificativa': item.justificativa or 'Pendente de justificativa'
+                        }
+                    )
 
-                # Calcular aproveitamento
-                aproveitamento = AproveitamentoDiario.calcular_para_pessoa(pessoa, data)
-                aproveitamento.fechado_em = timezone.now()
-                aproveitamento.save()
-
-                # Marcar tarefas não concluídas
-                for item in items:
-                    item.dia_fechado = True
-
-                    # Se não concluiu e não tem justificativa, registrar como pendente de justificativa
-                    if item.status != StatusItem.CONCLUIDO:
-                        # Criar registro de tarefa não concluída
-                        TarefaNaoConcluida.objects.get_or_create(
-                            checklist_item=item,
-                            aproveitamento=aproveitamento,
-                            defaults={
-                                'justificativa': item.justificativa or 'Pendente de justificativa'
-                            }
-                        )
-
-                    item.save()
-                    total_tarefas_fechadas += 1
-
-                self.stdout.write(
-                    f'  {pessoa.nome}: {aproveitamento.tarefas_concluidas}/{aproveitamento.total_tarefas} '
-                    f'({aproveitamento.percentual:.0f}%)'
-                )
+                item.save()
+                total_tarefas_fechadas += 1
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    f'  [{tenant.nome}] {total_pessoas} pessoa(s), {total_tarefas_fechadas} tarefa(s) processada(s).'
-                )
+                f'  {pessoa.nome}: {aproveitamento.tarefas_concluidas}/{aproveitamento.total_tarefas} '
+                f'({aproveitamento.percentual:.0f}%)'
             )
 
         self.stdout.write(
-            self.style.SUCCESS(f'\nDia {data} fechado para todos os tenants!')
+            self.style.SUCCESS(
+                f'\nDia {data} fechado: {total_pessoas} pessoa(s), {total_tarefas_fechadas} tarefa(s).'
+            )
         )
