@@ -1,7 +1,7 @@
 import logging
-import traceback
 from django.contrib import messages
-from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
@@ -21,26 +21,26 @@ class FriendlyErrorMiddleware:
         if request.path.startswith('/admin/'):
             return None
 
-        logger.error(
-            'Erro na view %s: %s\n%s',
-            request.path,
-            exception,
-            traceback.format_exc(),
-        )
+        # Http404 e PermissionDenied são controle de fluxo, não erro interno.
+        # Deixar o Django tratá-los com os status corretos (404 / 403) — caso
+        # contrário um IDOR barrado por Http404 viraria 400 e mascararia a causa.
+        if isinstance(exception, (Http404, PermissionDenied)):
+            return None
 
-        error_msg = str(exception)
-        if len(error_msg) > 200:
-            error_msg = error_msg[:200] + '...'
+        # Erro interno de verdade: logar com stack completo (logger.exception
+        # captura o traceback do contexto atual).
+        logger.exception('Erro na view %s', request.path)
 
-        # Requisições AJAX/JSON retornam JSON
+        # Requisições AJAX/JSON retornam JSON — mensagem genérica, NUNCA str(e)
+        # (não vazar detalhe interno/PII ao cliente).
         is_ajax = (
             request.headers.get('Content-Type') == 'application/json'
             or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         )
         if is_ajax:
-            return JsonResponse({'error': error_msg}, status=400)
+            return JsonResponse({'error': 'Ocorreu um erro ao processar a requisição.'}, status=500)
 
-        messages.error(request, f'Ocorreu um erro: {error_msg}')
+        messages.error(request, 'Ocorreu um erro ao processar a requisição.')
 
         referer = request.META.get('HTTP_REFERER')
         if referer and request.method == 'POST':

@@ -237,3 +237,129 @@ class ProjetoTests(BaseTestCase):
         self.c.login(username='gestor', password='pass123')
         r = self.c.get('/projetos/', SERVER_NAME=self.H)
         self.assertEqual(r.status_code, 200)
+
+
+class IDORTests(BaseTestCase):
+    """Isolamento multi-tenant: gestor de uma empresa NÃO acessa dados de outra.
+
+    Prova as correções de IDOR (escopo por Empresa). 'Outra' é uma empresa em
+    que pessoa_gestor (Neuraxo/RW6) NÃO participa. Toda ação cross-empresa deve
+    dar 404 — e o dado-alvo NÃO pode mudar.
+    """
+
+    def setUp(self):
+        super().setUp()
+        import json as _json
+        from datetime import date
+        from checklists.models import (
+            ChecklistTemplate, ChecklistItem, StatusItem, MapaMentalNo,
+        )
+        self._json = _json
+        self._date = date
+        self._StatusItem = StatusItem
+        self._MapaMentalNo = MapaMentalNo
+
+        # Empresa "Outra" + gestor próprio (estranho ao pessoa_gestor)
+        self.outra = Empresa.objects.create(nome='Outra')
+        self.user_outro = User.objects.create_user('outro', 'outro@test.com', 'pass123')
+        self.pessoa_outro = Pessoa.objects.create(
+            user=self.user_outro, nome='Gestor Outra', is_gestor=True,
+        )
+        self.pessoa_outro.empresas.add(self.outra)
+        PapelEmpresa.objects.create(
+            pessoa=self.pessoa_outro, empresa=self.outra, papel='gestor',
+        )
+
+        # Demanda da empresa Outra
+        self.demanda_outra = Demanda.objects.create(
+            empresa=self.outra, titulo='Demanda Outra',
+            responsavel=self.pessoa_outro, solicitante=self.pessoa_outro,
+            prazo=timezone.now() + timedelta(days=3),
+        )
+
+        # Projeto da empresa Outra (+ nó de mapa)
+        self.projeto_outra = Projeto.objects.create(
+            empresa=self.outra, titulo='Projeto Outra', responsavel=self.pessoa_outro,
+        )
+        self.no_outra = MapaMentalNo.objects.create(
+            projeto=self.projeto_outra, titulo='No Outra',
+        )
+
+        # ChecklistItem da empresa Outra com cancelamento solicitado
+        self.template_outra = ChecklistTemplate.objects.create(
+            empresa=self.outra, titulo='Template Outra',
+        )
+        self.item_outra = ChecklistItem.objects.create(
+            template=self.template_outra, responsavel=self.pessoa_outro,
+            data_referencia=date.today(),
+            data_limite=timezone.now() + timedelta(days=1),
+            cancelamento_solicitado=True,
+        )
+
+        self.c.login(username='gestor', password='pass123')
+
+    def _post_json(self, url, payload=None):
+        return self.c.post(
+            url, data=self._json.dumps(payload or {}),
+            content_type='application/json', SERVER_NAME=self.H,
+        )
+
+    # ── Demanda ──────────────────────────────────────────────
+    def test_comentario_demanda_outra_empresa_404(self):
+        url = f'/demanda/{self.demanda_outra.id}/comentario/'
+        r = self._post_json(url, {'texto': 'invasao'})
+        self.assertEqual(r.status_code, 404)
+        from checklists.models import ComentarioDemanda
+        self.assertFalse(
+            ComentarioDemanda.objects.filter(demanda=self.demanda_outra).exists()
+        )
+
+    # ── ChecklistItem (aprovar/recusar cancelamento) ─────────
+    def test_aprovar_cancelamento_outra_empresa_404(self):
+        url = f'/cancelar/{self.item_outra.id}/aprovar/'
+        r = self._post_json(url)
+        self.assertEqual(r.status_code, 404)
+        self.item_outra.refresh_from_db()
+        # status NÃO virou cancelado
+        self.assertNotEqual(self.item_outra.status, self._StatusItem.CANCELADO)
+
+    def test_recusar_cancelamento_outra_empresa_404(self):
+        url = f'/cancelar/{self.item_outra.id}/recusar/'
+        r = self._post_json(url)
+        self.assertEqual(r.status_code, 404)
+        self.item_outra.refresh_from_db()
+        # solicitação de cancelamento NÃO foi mexida
+        self.assertTrue(self.item_outra.cancelamento_solicitado)
+
+    # ── Projeto ──────────────────────────────────────────────
+    def test_mudar_status_projeto_outra_empresa_404(self):
+        url = f'/projeto/{self.projeto_outra.id}/status/'
+        r = self._post_json(url, {'status': 'concluido'})
+        self.assertEqual(r.status_code, 404)
+        self.projeto_outra.refresh_from_db()
+        self.assertEqual(self.projeto_outra.status, 'planejamento')
+
+    # ── MapaMentalNo ─────────────────────────────────────────
+    def test_excluir_no_mapa_outra_empresa_404(self):
+        url = f'/projeto/mapa/no/{self.no_outra.id}/excluir/'
+        r = self._post_json(url)
+        self.assertEqual(r.status_code, 404)
+        self.assertTrue(self._MapaMentalNo.objects.filter(id=self.no_outra.id).exists())
+
+    def test_editar_no_mapa_outra_empresa_404(self):
+        url = f'/projeto/mapa/no/{self.no_outra.id}/editar/'
+        r = self._post_json(url, {'titulo': 'hackeado'})
+        self.assertEqual(r.status_code, 404)
+        self.no_outra.refresh_from_db()
+        self.assertEqual(self.no_outra.titulo, 'No Outra')
+
+    # ── Caso de controle: ação na PRÓPRIA empresa funciona ───
+    def test_mudar_status_projeto_propria_empresa_ok(self):
+        proj = Projeto.objects.create(
+            empresa=self.neuraxo, titulo='Projeto Meu', responsavel=self.pessoa_gestor,
+        )
+        url = f'/projeto/{proj.id}/status/'
+        r = self._post_json(url, {'status': 'concluido'})
+        self.assertEqual(r.status_code, 200)
+        proj.refresh_from_db()
+        self.assertEqual(proj.status, 'concluido')
