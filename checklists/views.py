@@ -15,6 +15,7 @@ from .models import (
 )
 from django.conf import settings
 from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre, PastaEmpresa, ArquivoEmpresa
+from core.permissoes import get_pessoa_da_minha_equipe
 from datetime import timedelta, date, datetime
 from calendar import monthrange
 import json
@@ -873,11 +874,13 @@ def salvar_anotacao_demanda(request, demanda_id):
 @require_POST
 def adicionar_comentario_demanda(request, demanda_id):
     """Adiciona um comentário à demanda"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
-
     if not pessoa:
         return JsonResponse({'error': 'Usuário não vinculado'}, status=403)
+
+    # IDOR: só demanda de uma empresa do usuário
+    empresas = get_empresas_filtradas(pessoa, request)
+    demanda = get_object_or_404(Demanda, id=demanda_id, empresa__in=empresas)
 
     data = json.loads(request.body)
     texto = data.get('texto', '').strip()
@@ -906,11 +909,13 @@ def adicionar_comentario_demanda(request, demanda_id):
 @require_POST
 def upload_anexo_demanda(request, demanda_id):
     """Upload de anexo para demanda"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
-
     if not pessoa:
         return JsonResponse({'error': 'Usuário não vinculado'}, status=403)
+
+    # IDOR: só demanda de uma empresa do usuário
+    empresas = get_empresas_filtradas(pessoa, request)
+    demanda = get_object_or_404(Demanda, id=demanda_id, empresa__in=empresas)
 
     arquivo = request.FILES.get('arquivo')
     if not arquivo:
@@ -1059,7 +1064,8 @@ def marcar_dependente_demanda(request, demanda_id):
     motivo = data.get('motivo', '')
 
     if dependente_id:
-        dependente = get_object_or_404(Pessoa, id=dependente_id)
+        # IDOR: só pode depender de pessoa que compartilha empresa com o usuário
+        dependente = get_pessoa_da_minha_equipe(dependente_id, pessoa)
         demanda.dependente_de = dependente
         demanda.dependente_externo = ''
         demanda.telefone_dependente_externo = ''
@@ -1456,10 +1462,12 @@ def cancelar_tarefa(request, item_id):
 @require_POST
 def aprovar_cancelamento(request, item_id):
     """Gestor aprova solicitação de cancelamento"""
-    item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
     if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    # IDOR: só item de empresa do gestor (eh_gestor é global, escopar aqui)
+    empresas = get_empresas_filtradas(pessoa, request)
+    item = get_object_or_404(ChecklistItem, id=item_id, template__empresa__in=empresas)
 
     item.pausar_timer()
     item.status = StatusItem.CANCELADO
@@ -1472,10 +1480,12 @@ def aprovar_cancelamento(request, item_id):
 @require_POST
 def recusar_cancelamento(request, item_id):
     """Gestor recusa solicitação de cancelamento"""
-    item = get_object_or_404(ChecklistItem, id=item_id)
     pessoa = get_pessoa_or_redirect(request)
     if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    # IDOR: só item de empresa do gestor (eh_gestor é global, escopar aqui)
+    empresas = get_empresas_filtradas(pessoa, request)
+    item = get_object_or_404(ChecklistItem, id=item_id, template__empresa__in=empresas)
 
     item.cancelamento_solicitado = False
     item.cancelamento_motivo = ''
@@ -1531,7 +1541,8 @@ def marcar_dependente(request, item_id):
     motivo = data.get('motivo', '')
 
     if dependente_id:
-        dependente = get_object_or_404(Pessoa, id=dependente_id)
+        # IDOR: só pode depender de pessoa que compartilha empresa com o usuário
+        dependente = get_pessoa_da_minha_equipe(dependente_id, pessoa)
         item.dependente_de = dependente
         item.dependente_externo = ''
         item.telefone_dependente_externo = ''
@@ -1927,7 +1938,8 @@ def acompanhamento(request):
                     'total': agg['total'] or 0,
                 })
         else:
-            pessoa_selecionada = get_object_or_404(Pessoa, id=pessoa_id)
+            # IDOR: só pode ver pessoa que compartilha empresa com o gestor logado
+            pessoa_selecionada = get_pessoa_da_minha_equipe(pessoa_id, pessoa)
 
             aproveitamentos = AproveitamentoDiario.objects.filter(
                 pessoa=pessoa_selecionada,
@@ -2061,7 +2073,8 @@ def aproveitamento(request):
             })
     else:
         if pessoa.eh_gestor and pessoa_id:
-            pessoa_visualizada = get_object_or_404(Pessoa, id=pessoa_id)
+            # IDOR: só pode ver pessoa que compartilha empresa com o gestor logado
+            pessoa_visualizada = get_pessoa_da_minha_equipe(pessoa_id, pessoa)
         else:
             pessoa_visualizada = pessoa
 
@@ -2145,7 +2158,8 @@ def aproveitamento_dia(request, data_str):
     # Se é gestor, pode ver de outros
     pessoa_id = request.GET.get('pessoa')
     if pessoa.eh_gestor and pessoa_id:
-        pessoa_visualizada = get_object_or_404(Pessoa, id=pessoa_id)
+        # IDOR: só pode ver pessoa que compartilha empresa com o gestor logado
+        pessoa_visualizada = get_pessoa_da_minha_equipe(pessoa_id, pessoa)
     else:
         pessoa_visualizada = pessoa
 
@@ -2602,11 +2616,12 @@ def excluir_tarefa(request, item_id):
 
 def mudar_status_projeto(request, projeto_id):
     """Muda o status de um projeto"""
-    projeto = get_object_or_404(Projeto, id=projeto_id)
     pessoa = get_pessoa_or_redirect(request)
-
     if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    # IDOR: só projeto de empresa do gestor (eh_gestor é global, escopar aqui)
+    empresas = get_empresas_filtradas(pessoa, request)
+    projeto = get_object_or_404(Projeto, id=projeto_id, empresa__in=empresas)
 
     data = json.loads(request.body)
     novo_status = data.get('status')
@@ -3467,11 +3482,12 @@ def adicionar_no_mapa(request, projeto_id):
 @require_POST
 def excluir_no_mapa(request, no_id):
     """Exclui um nó do mapa mental"""
-    no = get_object_or_404(MapaMentalNo, id=no_id)
     pessoa = get_pessoa_or_redirect(request)
-
     if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    # IDOR: só nó de projeto de empresa do gestor (eh_gestor é global)
+    empresas = get_empresas_filtradas(pessoa, request)
+    no = get_object_or_404(MapaMentalNo, id=no_id, projeto__empresa__in=empresas)
 
     no.delete()
     return JsonResponse({'status': 'ok'})
@@ -3481,11 +3497,12 @@ def excluir_no_mapa(request, no_id):
 @require_POST
 def editar_no_mapa(request, no_id):
     """Edita um nó do mapa mental"""
-    no = get_object_or_404(MapaMentalNo, id=no_id)
     pessoa = get_pessoa_or_redirect(request)
-
     if not pessoa or not pessoa.eh_gestor:
         return JsonResponse({'error': 'Sem permissão'}, status=403)
+    # IDOR: só nó de projeto de empresa do gestor (eh_gestor é global)
+    empresas = get_empresas_filtradas(pessoa, request)
+    no = get_object_or_404(MapaMentalNo, id=no_id, projeto__empresa__in=empresas)
 
     try:
         data = json.loads(request.body)
@@ -4059,7 +4076,8 @@ def editar_membro(request, pessoa_id):
 
     from core.models import PapelEmpresa
 
-    membro = get_object_or_404(Pessoa, id=pessoa_id, ativo=True)
+    # IDOR: só pode editar membro que compartilha empresa com o gestor logado
+    membro = get_pessoa_da_minha_equipe(pessoa_id, pessoa_logada)
     empresas_gestor = pessoa_logada.empresas.filter(ativo=True)
 
     for emp in empresas_gestor:
@@ -4586,7 +4604,9 @@ def criar_subpasta(request, pasta_id):
     if not pessoa:
         return redirect('dashboard')
 
-    pasta_pai = get_object_or_404(PastaCliente, id=pasta_id)
+    # IDOR: só pasta de cliente de uma empresa do usuário
+    empresas = get_empresas_filtradas(pessoa, request)
+    pasta_pai = get_object_or_404(PastaCliente, id=pasta_id, cliente__empresa__in=empresas)
     nome = request.POST.get('nome', '').strip()
     if nome:
         PastaCliente.objects.create(
@@ -4601,7 +4621,11 @@ def upload_pasta(request, pasta_id):
     """Upload de arquivos em uma pasta do cliente"""
     from core.models import PastaCliente, ArquivoPasta
     pessoa = get_pessoa_or_redirect(request)
-    pasta = get_object_or_404(PastaCliente, id=pasta_id)
+    if not pessoa:
+        return redirect('dashboard')
+    # IDOR: só pasta de cliente de uma empresa do usuário
+    empresas = get_empresas_filtradas(pessoa, request)
+    pasta = get_object_or_404(PastaCliente, id=pasta_id, cliente__empresa__in=empresas)
 
     arquivos = request.FILES.getlist('arquivos')
     nome_enviador = pessoa.nome if pessoa else 'Equipe'

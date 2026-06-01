@@ -80,3 +80,7 @@ docker-compose.override.yml
 *.sql
 datadump.json
 GUIA_TESTES.md
+
+# Dumps de banco (contêm dados reais de clientes — NUNCA versionar)
+backups_db/
+*.dump
