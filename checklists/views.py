@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
@@ -11,7 +12,7 @@ from .models import (
     Demanda, SubTarefaDemanda, AnexoDemanda, ComentarioDemanda,
     StatusDemanda, PrioridadeDemanda, AproveitamentoDiario,
     Projeto, StatusProjeto, ProjetoTemplate, TipoEtapa,
-    MapaMentalNo, TipoNoMapa, Anotacao,
+    MapaMentalNo, TipoNoMapa, Anotacao, ContatoPendencia,
 )
 from django.conf import settings
 from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre, PastaEmpresa, ArquivoEmpresa
@@ -411,6 +412,24 @@ def minhas_tarefas(request):
 # DEMANDAS / PENDÊNCIAS
 # ============================================
 
+def resolver_contato_pendencia(contato_id, pessoa, atual_id=None):
+    """Valida o contato ("Pendente com") enviado num form de demanda.
+
+    Retorna (ok, contato_id_final). Só aceita contato do próprio usuário (lista é
+    pessoal) — exceto manter o contato que a demanda já tinha (`atual_id`), para um
+    co-gestor editar sem apagar o vínculo de outro dono.
+    """
+    contato_id = (contato_id or '').strip()
+    if not contato_id:
+        return True, None
+    if atual_id and contato_id == str(atual_id):
+        return True, atual_id
+    contato = ContatoPendencia.objects.filter(id=contato_id, dono=pessoa, ativo=True).first()
+    if not contato:
+        return False, None
+    return True, contato.id
+
+
 @login_required
 def lista_demandas(request):
     """Lista de demandas/pendências"""
@@ -441,7 +460,7 @@ def lista_demandas(request):
     if status_filter:
         demandas = demandas.filter(status=status_filter)
 
-    demandas = demandas.select_related('empresa', 'responsavel', 'solicitante')
+    demandas = demandas.select_related('empresa', 'responsavel', 'solicitante', 'contato')
 
     # Demandas concluídas (para a aba de concluídos)
     demandas_concluidas = demandas_base.filter(status='concluido')
@@ -514,6 +533,28 @@ def lista_demandas(request):
         ).select_related('conta_pagar', 'conta_pagar__empresa').order_by('data_vencimento')
         total_pagamentos = pagamentos_vencidos.count() + pagamentos_a_vencer.count()
 
+    # Pessoas: pendências agrupadas pela pessoa com quem estão (lista pessoal do usuário)
+    contatos = list(ContatoPendencia.objects.filter(dono=pessoa, ativo=True))
+    demandas_contato = demandas_base.exclude(status='concluido').filter(
+        contato__in=contatos,
+    ).select_related('empresa', 'responsavel', 'contato').order_by('prazo')
+    por_contato = {c.id: [] for c in contatos}
+    for d in demandas_contato:
+        por_contato[d.contato_id].append(d)
+    agora = timezone.now()
+    pessoas_dados = [
+        {
+            'contato': c,
+            'demandas': por_contato[c.id],
+            'total': len(por_contato[c.id]),
+            'atrasadas': sum(1 for d in por_contato[c.id] if d.prazo < agora),
+        }
+        for c in contatos
+    ]
+    # Quem tem pendência primeiro; dentro de cada grupo, ordem alfabética
+    pessoas_dados.sort(key=lambda p: (p['total'] == 0, p['contato'].nome.lower()))
+    total_pessoas_pendencias = sum(p['total'] for p in pessoas_dados)
+
     context = {
         'pessoa': pessoa,
         'demandas_por_empresa': demandas_por_empresa,
@@ -532,8 +573,46 @@ def lista_demandas(request):
         'pagamentos_vencidos': pagamentos_vencidos,
         'pagamentos_a_vencer': pagamentos_a_vencer,
         'total_pagamentos': total_pagamentos,
+        'pessoas_dados': pessoas_dados,
+        'total_pessoas_pendencias': total_pessoas_pendencias,
     }
     return render(request, 'checklists/lista_demandas.html', context)
+
+
+@login_required
+@require_POST
+def criar_contato_pendencia(request):
+    """Cadastra uma pessoa na lista pessoal de pendências (aba Pessoas)."""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+    nome = request.POST.get('nome', '').strip()[:120]
+    observacao = request.POST.get('observacao', '').strip()[:120]
+    telefone = request.POST.get('telefone', '').strip()[:20]
+    if not nome:
+        messages.error(request, 'Informe o nome da pessoa.')
+    elif ContatoPendencia.objects.filter(dono=pessoa, ativo=True, nome__iexact=nome,
+                                         observacao__iexact=observacao).exists():
+        messages.error(request, f'"{nome}" já está cadastrada.')
+    else:
+        ContatoPendencia.objects.create(dono=pessoa, nome=nome, observacao=observacao, telefone=telefone)
+        messages.success(request, f'Pessoa "{nome}" cadastrada!')
+    return redirect(f"{reverse('lista_demandas')}?tab=pessoas")
+
+
+@login_required
+@require_POST
+def remover_contato_pendencia(request, contato_id):
+    """Remove (desativa) uma pessoa da lista. As demandas continuam, só perdem o vínculo."""
+    pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+    contato = get_object_or_404(ContatoPendencia, id=contato_id, dono=pessoa, ativo=True)
+    contato.ativo = False
+    contato.save(update_fields=['ativo'])
+    Demanda.objects.filter(contato=contato).update(contato=None)
+    messages.success(request, f'"{contato.nome}" removida da lista.')
+    return redirect(f"{reverse('lista_demandas')}?tab=pessoas")
 
 
 @login_required
@@ -554,15 +633,19 @@ def criar_demanda(request):
         prioridade = request.POST.get('prioridade', PrioridadeDemanda.MEDIA)
         tempo_estimado = int(request.POST.get('tempo_estimado', 0) or 0)
         projeto_id = request.POST.get('projeto') or None
+        contato_ok, contato_id = resolver_contato_pendencia(request.POST.get('contato'), pessoa)
 
         if not all([empresa_id, responsavel_id, titulo, prazo]):
             messages.error(request, 'Preencha todos os campos obrigatórios.')
+        elif not contato_ok:
+            messages.error(request, 'Pessoa selecionada inválida.')
         else:
             demanda = Demanda.objects.create(
                 empresa_id=empresa_id,
                 projeto_id=projeto_id,
                 solicitante=pessoa,
                 responsavel_id=responsavel_id,
+                contato_id=contato_id,
                 titulo=titulo,
                 descricao=descricao,
                 instrucoes=instrucoes,
@@ -624,6 +707,8 @@ def criar_demanda(request):
         'projetos': projetos,
         'responsavel_preselect': responsavel_preselect,
         'empresa_preselect': empresa_preselect,
+        'contatos': ContatoPendencia.objects.filter(dono=pessoa, ativo=True),
+        'contato_preselect': request.GET.get('contato', ''),
     }
     return render(request, 'checklists/criar_demanda.html', context)
 
@@ -675,6 +760,13 @@ def editar_demanda(request, demanda_id):
             demanda.responsavel_id = responsavel_id
         projeto_id = request.POST.get('projeto')
         demanda.projeto_id = projeto_id or None
+        if 'contato' in request.POST:
+            contato_ok, contato_id = resolver_contato_pendencia(
+                request.POST.get('contato'), pessoa, atual_id=demanda.contato_id)
+            if not contato_ok:
+                messages.error(request, 'Pessoa selecionada inválida.')
+                return redirect('editar_demanda', demanda_id=demanda.id)
+            demanda.contato_id = contato_id
         demanda.save()
         messages.success(request, 'Demanda atualizada!')
         return redirect('detalhe_demanda', demanda_id=demanda.id)
@@ -692,6 +784,7 @@ def editar_demanda(request, demanda_id):
         'prioridades': PrioridadeDemanda.choices,
         'tempos_estimados': Demanda.TEMPO_ESTIMADO_CHOICES,
         'projetos': projetos,
+        'contatos': ContatoPendencia.objects.filter(dono=pessoa, ativo=True),
     }
     return render(request, 'checklists/editar_demanda.html', context)
 

@@ -413,6 +413,33 @@ class MapaMentalNo(models.Model):
 
 
 # ============================================
+# PESSOAS DAS PENDÊNCIAS (contatos com quem tenho pendência)
+# ============================================
+
+class ContatoPendencia(models.Model):
+    """Pessoa com quem o usuário tem pendências (sem login, não recebe notificação).
+
+    Lista pessoal: cada contato pertence ao `dono` que cadastrou (isolamento por dono).
+    Usado na aba "Pessoas" das pendências para agrupar demandas por pessoa.
+    """
+    dono = models.ForeignKey(Pessoa, on_delete=models.CASCADE, related_name='contatos_pendencia')
+    nome = models.CharField(max_length=120)
+    observacao = models.CharField(max_length=120, blank=True,
+                                  help_text='Ex: empresa, setor ("Correios")')
+    telefone = models.CharField(max_length=20, blank=True, help_text='WhatsApp com DDD (opcional)')
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Pessoa (pendências)'
+        verbose_name_plural = 'Pessoas (pendências)'
+        ordering = ['nome']
+
+    def __str__(self):
+        return f"{self.nome} - {self.observacao}" if self.observacao else self.nome
+
+
+# ============================================
 # DEMANDAS (Pendências com prazo)
 # ============================================
 
@@ -448,6 +475,9 @@ class Demanda(models.Model):
                                      help_text='Gestor que criou a demanda')
     responsavel = models.ForeignKey(Pessoa, on_delete=models.SET_NULL, null=True, related_name='demandas_recebidas',
                                      help_text='Funcionário responsável por executar')
+    contato = models.ForeignKey(ContatoPendencia, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='demandas',
+                                help_text='Pessoa com quem esta pendência está (aba Pessoas)')
 
     # Conteúdo
     titulo = models.CharField(max_length=300)

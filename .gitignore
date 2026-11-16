@@ -84,3 +84,6 @@ GUIA_TESTES.md
 # Dumps de banco (contêm dados reais de clientes — NUNCA versionar)
 backups_db/
 *.dump
+
+# capturas/snapshots do MCP Playwright (contêm dados reais)
+.playwright-mcp/

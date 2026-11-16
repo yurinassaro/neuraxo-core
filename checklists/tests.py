@@ -363,3 +363,56 @@ class IDORTests(BaseTestCase):
         self.assertEqual(r.status_code, 200)
         proj.refresh_from_db()
         self.assertEqual(proj.status, 'concluido')
+
+
+class PessoasPendenciasTests(BaseTestCase):
+    """Aba Pessoas: lista pessoal de contatos (isolada por dono) + vínculo na demanda."""
+
+    def setUp(self):
+        super().setUp()
+        from checklists.models import ContatoPendencia
+        self.Contato = ContatoPendencia
+        self.contato_a = ContatoPendencia.objects.create(dono=self.pessoa_gestor, nome='Contato A')
+        self.do_func = ContatoPendencia.objects.create(dono=self.pessoa_func, nome='Contato do Func')
+        self.c.force_login(self.user_gestor)
+
+    def _criar_demanda(self, contato_id):
+        return self.c.post('/demandas/nova/', {
+            'empresa': self.neuraxo.id, 'responsavel': self.pessoa_gestor.id,
+            'titulo': 'Cobrar orçamento', 'prazo': '2030-01-01T10:00',
+            'contato': contato_id,
+        })
+
+    def test_cadastra_pessoa_na_lista_do_proprio_usuario(self):
+        r = self.c.post('/demandas/pessoas/nova/', {'nome': 'Contato B', 'observacao': 'Fornecedor'})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self.Contato.objects.filter(
+            dono=self.pessoa_gestor, nome='Contato B', observacao='Fornecedor').exists())
+
+    def test_demanda_com_contato_aparece_agrupada_na_aba_pessoas(self):
+        self._criar_demanda(self.contato_a.id)
+        d = Demanda.objects.get(titulo='Cobrar orçamento')
+        self.assertEqual(d.contato, self.contato_a)
+        r = self.c.get('/demandas/?tab=pessoas')
+        grupo = next(p for p in r.context['pessoas_dados'] if p['contato'] == self.contato_a)
+        self.assertEqual(grupo['demandas'], [d])
+        self.assertEqual(r.context['total_pessoas_pendencias'], 1)
+        # contato de outro usuário não aparece na minha aba
+        self.assertNotIn(self.do_func, [p['contato'] for p in r.context['pessoas_dados']])
+
+    def test_nao_usa_contato_de_outro_usuario(self):
+        self._criar_demanda(self.do_func.id)
+        self.assertFalse(Demanda.objects.filter(titulo='Cobrar orçamento').exists())
+
+    def test_nao_remove_contato_de_outro_usuario(self):
+        r = self.c.post(f'/demandas/pessoas/{self.do_func.id}/remover/')
+        self.assertEqual(r.status_code, 404)
+        self.do_func.refresh_from_db()
+        self.assertTrue(self.do_func.ativo)
+
+    def test_remover_desvincula_demandas(self):
+        self._criar_demanda(self.contato_a.id)
+        self.c.post(f'/demandas/pessoas/{self.contato_a.id}/remover/')
+        self.contato_a.refresh_from_db()
+        self.assertFalse(self.contato_a.ativo)
+        self.assertIsNone(Demanda.objects.get(titulo='Cobrar orçamento').contato)

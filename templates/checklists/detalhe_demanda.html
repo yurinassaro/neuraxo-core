@@ -309,6 +309,12 @@
                     <dt class="text-gray-500">Responsável</dt>
                     <dd class="font-medium">{{ demanda.responsavel.nome }}</dd>
                 </div>
+                {% if demanda.contato %}
+                <div>
+                    <dt class="text-gray-500">Pendente com</dt>
+                    <dd class="font-medium">{{ demanda.contato }}</dd>
+                </div>
+                {% endif %}
                 <div>
                     <dt class="text-gray-500">Solicitado por</dt>
                     <dd class="font-medium">{{ demanda.solicitante.nome }}</dd>

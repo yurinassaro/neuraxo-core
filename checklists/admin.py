@@ -8,7 +8,7 @@ from .models import (
     ChecklistTemplate, ChecklistItem, StatusItem, SubTarefa, SubTarefaTemplate,
     Demanda, SubTarefaDemanda, AnexoDemanda, ComentarioDemanda,
     StatusDemanda, PrioridadeDemanda, Projeto, StatusProjeto,
-    ProjetoTemplate, EtapaTemplate, TipoEtapa, MapaMentalNo,
+    ProjetoTemplate, EtapaTemplate, TipoEtapa, MapaMentalNo, ContatoPendencia,
 )
 from core.models import Pessoa
 
@@ -414,7 +414,7 @@ class DemandaAdmin(admin.ModelAdmin):
     list_filter = ['status', 'prioridade', 'tipo_etapa', 'empresa', 'responsavel', 'solicitante']
     search_fields = ['titulo', 'descricao', 'responsavel__nome', 'solicitante__nome']
     date_hierarchy = 'prazo'
-    raw_id_fields = ['responsavel', 'solicitante', 'dependente_de']
+    raw_id_fields = ['responsavel', 'solicitante', 'dependente_de', 'contato']
     inlines = [SubTarefaDemandaInline, AnexoDemandaInline, ComentarioDemandaInline]
 
     fieldsets = (
@@ -662,3 +662,10 @@ class ProjetoAdmin(admin.ModelAdmin):
             'empresas': empresas,
             'opts': self.model._meta,
         })
+
+
+@admin.register(ContatoPendencia)
+class ContatoPendenciaAdmin(admin.ModelAdmin):
+    list_display = ['nome', 'observacao', 'telefone', 'dono', 'ativo']
+    list_filter = ['ativo', 'dono']
+    search_fields = ['nome', 'observacao']

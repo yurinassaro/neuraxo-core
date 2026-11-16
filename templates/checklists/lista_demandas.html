@@ -18,7 +18,7 @@
 
 <!-- Abas -->
 <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
-    <nav class="flex space-x-4" aria-label="Tabs">
+    <nav class="flex space-x-4 overflow-x-auto whitespace-nowrap" aria-label="Tabs">
         <button type="button" id="tab-pendencias" onclick="showTab('pendencias')"
             class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400">
             Pendencias
@@ -40,6 +40,13 @@
             {% endif %}
         </button>
         {% endif %}
+        <button type="button" id="tab-pessoas" onclick="showTab('pessoas')"
+            class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+            Pessoas
+            {% if total_pessoas_pendencias %}
+            <span class="ml-1 bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 text-xs px-2 py-0.5 rounded-full">{{ total_pessoas_pendencias }}</span>
+            {% endif %}
+        </button>
         <button type="button" id="tab-concluidos" onclick="showTab('concluidos')"
             class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
             Concluidos
@@ -133,6 +140,9 @@
                         <div class="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-2">
                             <span>Prazo: {{ demanda.prazo|date:"d/m/Y H:i" }}</span>
                             <span>Responsavel: {{ demanda.responsavel.nome }}</span>
+                            {% if demanda.contato %}
+                            <span class="text-teal-700 dark:text-teal-300">Com: {{ demanda.contato.nome }}</span>
+                            {% endif %}
                             {% if demanda.solicitante %}
                             <span>Solicitado por: {{ demanda.solicitante.nome }}</span>
                             {% endif %}
@@ -307,6 +317,87 @@
 </div>
 {% endif %}
 
+<!-- Aba Pessoas -->
+<div id="content-pessoas" class="tab-content hidden">
+    <!-- Cadastro rapido -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <form method="post" action="{% url 'criar_contato_pendencia' %}" class="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-end">
+            {% csrf_token %}
+            <div class="flex-1 min-w-0 sm:min-w-[10rem]">
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Nome *</label>
+                <input type="text" name="nome" required maxlength="120" placeholder="Ex: Maria"
+                    class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div class="flex-1 min-w-0 sm:min-w-[10rem]">
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Observação</label>
+                <input type="text" name="observacao" maxlength="120" placeholder="Ex: Correios"
+                    class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <div class="flex-1 min-w-0 sm:min-w-[10rem]">
+                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">WhatsApp</label>
+                <input type="text" name="telefone" maxlength="20" placeholder="5511999999999"
+                    class="w-full px-3 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                Cadastrar pessoa
+            </button>
+        </form>
+    </div>
+
+    {% for p in pessoas_dados %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-3" x-data="{ open: false }">
+        <div class="flex items-center justify-between p-4 gap-2">
+            <button type="button" @click="open = !open" class="flex items-center space-x-3 flex-1 min-w-0 text-left">
+                <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                <span class="w-8 h-8 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 flex items-center justify-center text-sm font-semibold flex-shrink-0">{{ p.contato.nome|slice:":1"|upper }}</span>
+                <span class="font-semibold text-gray-800 dark:text-white truncate">{{ p.contato.nome }}</span>
+                {% if p.contato.observacao %}
+                <span class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ p.contato.observacao }}</span>
+                {% endif %}
+            </button>
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                {% if p.atrasadas > 0 %}
+                <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full">{{ p.atrasadas }} atrasada{{ p.atrasadas|pluralize }}</span>
+                {% endif %}
+                <span class="px-2 py-0.5 text-xs {% if p.total %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200{% else %}bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400{% endif %} rounded-full">{{ p.total }}</span>
+            </div>
+        </div>
+        <div x-show="open" x-transition class="border-t dark:border-gray-700 p-4 space-y-2">
+            {% for d in p.demandas %}
+            <div class="flex items-center justify-between gap-2 py-2 px-3 rounded hover:bg-gray-50 dark:hover:bg-gray-700 border-l-4 {% if d.get_status_prazo == 'atrasado' %}border-red-500{% elif d.get_status_prazo == 'urgente' %}border-orange-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ d.titulo }}</span>
+                        {% if d.prioridade == 'alta' or d.prioridade == 'urgente' %}
+                        <span class="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded flex-shrink-0">{{ d.get_prioridade_display }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {{ d.empresa.nome }} | Prazo: {{ d.prazo|date:"d/m/Y H:i" }}{% if d.responsavel %} | {{ d.responsavel.nome }}{% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded hover:bg-indigo-200 flex-shrink-0">Abrir</a>
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">Nenhuma pendência com {{ p.contato.nome }}.</p>
+            {% endfor %}
+            <div class="flex items-center justify-between pt-2">
+                <a href="{% url 'criar_demanda' %}?contato={{ p.contato.id }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">+ Nova pendência com {{ p.contato.nome }}</a>
+                <form method="post" action="{% url 'remover_contato_pendencia' p.contato.id %}"
+                      onsubmit="return confirm('Remover {{ p.contato.nome|escapejs }} da lista? As pendências continuam, só perdem o vínculo.');">
+                    {% csrf_token %}
+                    <button type="submit" class="text-xs text-red-600 dark:text-red-400 hover:underline">Remover pessoa</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+        <p>Nenhuma pessoa cadastrada. Use o formulário acima.</p>
+    </div>
+    {% endfor %}
+</div>
+
 <!-- Aba Concluidos -->
 <div id="content-concluidos" class="tab-content hidden">
     <!-- Filtro de periodo -->
@@ -468,6 +559,9 @@ function showTab(tab) {
     const tabBtn = document.getElementById('tab-' + tab);
     tabBtn.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
     tabBtn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400', 'dark:border-indigo-400');
+    // No mobile as abas rolam na horizontal: garante que a ativa fique visível
+    const nav = tabBtn.parentElement;
+    nav.scrollLeft = tabBtn.offsetLeft - (nav.clientWidth - tabBtn.offsetWidth) / 2;
 
     // Salva no URL sem recarregar
     const url = new URL(window.location);
@@ -479,7 +573,7 @@ function showTab(tab) {
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
-    if (tab === 'concluidos' || tab === 'projetos' || tab === 'pagamentos') {
+    if (['concluidos', 'projetos', 'pagamentos', 'pessoas'].includes(tab) && document.getElementById('content-' + tab)) {
         showTab(tab);
     }
 });

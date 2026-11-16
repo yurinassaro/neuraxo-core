@@ -42,6 +42,18 @@
             </select>
         </div>
 
+        {% if contatos %}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pendente com <span class="text-gray-400">(opcional - aparece na aba Pessoas)</span></label>
+            <select name="contato" id="contato" class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <option value="">Ninguém</option>
+                {% for c in contatos %}
+                <option value="{{ c.id }}" {% if contato_preselect == c.id|stringformat:"s" %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
         <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título *</label>
             <input type="text" name="titulo" required class="w-full px-4 py-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Ex: Fazer orçamento para cliente ABC">
@@ -107,7 +119,8 @@
 <script>
 const empresaSelect = document.getElementById('empresa');
 const responsavelSelect = document.getElementById('responsavel');
-const responsavelPreselect = '{{ responsavel_preselect|default:"" }}';
+// Vindo da aba Pessoas (?contato=) sem responsável: sugere o próprio usuário
+const responsavelPreselect = '{{ responsavel_preselect|default:"" }}' || ('{{ contato_preselect|default:"" }}' ? '{{ pessoa.id }}' : '');
 
 // Prazo padrão: hoje 23:59
 const prazoInput = document.getElementById('prazo');
@@ -150,7 +163,7 @@ function filterProjetos(empresaId) {
 }
 
 empresaSelect.addEventListener('change', function() {
-    loadPessoas(this.value);
+    loadPessoas(this.value, responsavelPreselect);
     filterProjetos(this.value);
 });
 

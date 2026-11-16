@@ -50,6 +50,8 @@ urlpatterns = [
     # ============================================
     path('demandas/', views.lista_demandas, name='lista_demandas'),
     path('demandas/nova/', views.criar_demanda, name='criar_demanda'),
+    path('demandas/pessoas/nova/', views.criar_contato_pendencia, name='criar_contato_pendencia'),
+    path('demandas/pessoas/<int:contato_id>/remover/', views.remover_contato_pendencia, name='remover_contato_pendencia'),
     path('demanda/<int:demanda_id>/', views.detalhe_demanda, name='detalhe_demanda'),
     path('demanda/<int:demanda_id>/editar/', views.editar_demanda, name='editar_demanda'),
     path('demanda/<int:demanda_id>/status/', views.mudar_status_demanda, name='mudar_status_demanda'),
