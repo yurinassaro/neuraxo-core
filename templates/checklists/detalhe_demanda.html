@@ -38,6 +38,16 @@
                         <span>Editar</span>
                     </a>
                     {% endif %}
+                    {% if pode_concluir and demanda.status != 'concluido' %}
+                    <button type="button" onclick="mudarStatus('concluido')" class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Concluir</button>
+                    {% endif %}
+                    {% if pode_excluir %}
+                    <form method="post" action="{% url 'excluir_demanda' demanda.id %}" class="inline"
+                          onsubmit="return confirm('Excluir permanentemente esta demanda?');">
+                        {% csrf_token %}
+                        <button type="submit" class="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">Excluir</button>
+                    </form>
+                    {% endif %}
                 <div id="status-badge">
                     {% if demanda.status == 'concluido' %}
                     <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap">Concluído</span>
@@ -637,12 +647,15 @@ function mudarStatus(novoStatus) {
         headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: novoStatus })
     })
-    .then(response => response.json())
+    .then(response => response.json().catch(() => ({})))
     .then(data => {
         if (data.status === 'ok') {
             location.reload();
+        } else {
+            alert(data.error || 'Não foi possível alterar o status.');
         }
-    });
+    })
+    .catch(() => alert('Erro de conexão'));
 }
 
 function reabrirDemanda() {

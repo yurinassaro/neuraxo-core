@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Count, Q, Sum, Avg
 from django.db.models.functions import Coalesce
 from .models import (
@@ -16,7 +17,7 @@ from .models import (
 )
 from django.conf import settings
 from core.models import Pessoa, Empresa, Cliente, ItemCofre, CategoriaCofre, PastaEmpresa, ArquivoEmpresa
-from core.permissoes import get_pessoa_da_minha_equipe
+from core.permissoes import get_pessoa_da_minha_equipe, get_objeto_da_empresa
 from datetime import timedelta, date, datetime
 from calendar import monthrange
 import json
@@ -640,19 +641,31 @@ def criar_demanda(request):
         elif not contato_ok:
             messages.error(request, 'Pessoa selecionada inválida.')
         else:
-            demanda = Demanda.objects.create(
-                empresa_id=empresa_id,
-                projeto_id=projeto_id,
-                solicitante=pessoa,
-                responsavel_id=responsavel_id,
-                contato_id=contato_id,
-                titulo=titulo,
-                descricao=descricao,
-                instrucoes=instrucoes,
-                prazo=prazo,
-                prioridade=prioridade,
-                tempo_estimado=tempo_estimado,
-            )
+            with transaction.atomic():
+                # Trava por usuário: cliques repetidos esperam em fila e o seguinte
+                # encontra a demanda que o anterior acabou de criar (anti clique-duplo).
+                list(Pessoa.objects.select_for_update().filter(id=pessoa.id).values_list('id', flat=True))
+                duplicada = Demanda.objects.filter(
+                    solicitante=pessoa, empresa_id=empresa_id, responsavel_id=responsavel_id,
+                    titulo=titulo, criado_em__gte=timezone.now() - timedelta(seconds=60),
+                ).order_by('-criado_em').first()
+                if not duplicada:
+                    demanda = Demanda.objects.create(
+                        empresa_id=empresa_id,
+                        projeto_id=projeto_id,
+                        solicitante=pessoa,
+                        responsavel_id=responsavel_id,
+                        contato_id=contato_id,
+                        titulo=titulo,
+                        descricao=descricao,
+                        instrucoes=instrucoes,
+                        prazo=prazo,
+                        prioridade=prioridade,
+                        tempo_estimado=tempo_estimado,
+                    )
+            if duplicada:
+                messages.info(request, f'A demanda "{titulo}" já tinha sido criada.')
+                return redirect('detalhe_demanda', demanda_id=duplicada.id)
 
             # Criar subtarefas do checklist
             checklist_items = request.POST.get('checklist_items', '')
@@ -732,21 +745,46 @@ def detalhe_demanda(request, demanda_id):
         'pessoa': pessoa,
         'status_choices': StatusDemanda.choices,
         'prioridades': PrioridadeDemanda.choices,
+        'pode_concluir': pode_concluir_demanda(pessoa, demanda),
+        'pode_excluir': pode_excluir_demanda(pessoa, demanda, request.user),
     }
     return render(request, 'checklists/detalhe_demanda.html', context)
 
 
 @login_required
 def editar_demanda(request, demanda_id):
-    """Edita uma demanda existente (gestor ou solicitante)"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
+    """Edita uma demanda existente (gestor da empresa ou solicitante)"""
     pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return redirect('dashboard')
+    # Escopo por empresa (anti-IDOR): só carrega demanda de empresa do usuário
+    minhas_empresas = pessoa.empresas.filter(ativo=True)
+    demanda = get_objeto_da_empresa(Demanda, demanda_id, minhas_empresas)
 
-    if not pessoa or (demanda.solicitante != pessoa and not pessoa.eh_gestor):
+    if demanda.solicitante != pessoa and not pessoa.is_gestor_empresa(demanda.empresa):
         messages.error(request, 'Sem permissão para editar.')
         return redirect('detalhe_demanda', demanda_id=demanda.id)
 
     if request.method == 'POST':
+        # Empresa (pode ser trocada); responsável e projeto precisam pertencer a ela
+        empresa_id = request.POST.get('empresa') or demanda.empresa_id
+        nova_empresa = minhas_empresas.filter(id=empresa_id).first()
+        responsavel_id = request.POST.get('responsavel') or demanda.responsavel_id
+        projeto_id = request.POST.get('projeto') or None
+        erro = None
+        if not nova_empresa:
+            erro = 'Empresa inválida.'
+        elif not Pessoa.objects.filter(id=responsavel_id, empresas=nova_empresa, ativo=True).exists():
+            erro = f'O responsável selecionado não faz parte da empresa {nova_empresa.nome}.'
+        elif projeto_id and not Projeto.objects.filter(id=projeto_id, empresa=nova_empresa).exists():
+            erro = f'O projeto selecionado não é da empresa {nova_empresa.nome}.'
+        if erro:
+            messages.error(request, erro)
+            return redirect('editar_demanda', demanda_id=demanda.id)
+        demanda.empresa = nova_empresa
+        demanda.responsavel_id = responsavel_id
+        demanda.projeto_id = projeto_id
+
         demanda.titulo = request.POST.get('titulo', demanda.titulo)
         demanda.descricao = request.POST.get('descricao', '')
         demanda.instrucoes = request.POST.get('instrucoes', '')
@@ -755,11 +793,6 @@ def editar_demanda(request, demanda_id):
         tempo_estimado = request.POST.get('tempo_estimado')
         if tempo_estimado is not None:
             demanda.tempo_estimado = int(tempo_estimado or 0)
-        responsavel_id = request.POST.get('responsavel')
-        if responsavel_id:
-            demanda.responsavel_id = responsavel_id
-        projeto_id = request.POST.get('projeto')
-        demanda.projeto_id = projeto_id or None
         if 'contato' in request.POST:
             contato_ok, contato_id = resolver_contato_pendencia(
                 request.POST.get('contato'), pessoa, atual_id=demanda.contato_id)
@@ -771,15 +804,16 @@ def editar_demanda(request, demanda_id):
         messages.success(request, 'Demanda atualizada!')
         return redirect('detalhe_demanda', demanda_id=demanda.id)
 
-    empresas = get_empresas_filtradas(pessoa, request)
-    pessoas = Pessoa.objects.filter(empresas__in=empresas, ativo=True).distinct()
+    # Responsáveis da empresa atual da demanda (o JS recarrega ao trocar a empresa)
+    pessoas = Pessoa.objects.filter(empresas=demanda.empresa, ativo=True).distinct().order_by('nome')
     projetos = Projeto.objects.filter(
-        empresa__in=empresas
+        empresa__in=minhas_empresas
     ).exclude(status__in=['concluido', 'cancelado']).select_related('empresa')
 
     context = {
         'demanda': demanda,
         'pessoa': pessoa,
+        'empresas': minhas_empresas,
         'pessoas': pessoas,
         'prioridades': PrioridadeDemanda.choices,
         'tempos_estimados': Demanda.TEMPO_ESTIMADO_CHOICES,
@@ -789,17 +823,29 @@ def editar_demanda(request, demanda_id):
     return render(request, 'checklists/editar_demanda.html', context)
 
 
+def pode_concluir_demanda(pessoa, demanda):
+    """Responsável, solicitante ou gestor da empresa da demanda."""
+    return (pessoa.id in (demanda.responsavel_id, demanda.solicitante_id)
+            or pessoa.is_gestor_empresa(demanda.empresa))
+
+
+def pode_excluir_demanda(pessoa, demanda, user):
+    """Solicitante, gestor da empresa da demanda ou staff."""
+    return (user.is_staff or demanda.solicitante_id == pessoa.id
+            or pessoa.is_gestor_empresa(demanda.empresa))
+
+
 @login_required
 @require_POST
 def mudar_status_demanda(request, demanda_id):
     """Muda o status de uma demanda"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
 
     if not pessoa:
         return JsonResponse({'error': 'Usuário não vinculado'}, status=403)
 
-    if demanda.responsavel != pessoa and not pessoa.eh_gestor:
+    demanda = get_objeto_da_empresa(Demanda, demanda_id, pessoa.empresas.filter(ativo=True))
+    if not pode_concluir_demanda(pessoa, demanda):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     data = json.loads(request.body)
@@ -831,10 +877,12 @@ def mudar_status_demanda(request, demanda_id):
 @require_POST
 def reabrir_demanda(request, demanda_id):
     """Reabre uma demanda concluída"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
     pessoa = get_pessoa_or_redirect(request)
+    if not pessoa:
+        return JsonResponse({'error': 'Sem permissão'}, status=403)
 
-    if not pessoa or (demanda.responsavel != pessoa and not pessoa.eh_gestor):
+    demanda = get_objeto_da_empresa(Demanda, demanda_id, pessoa.empresas.filter(ativo=True))
+    if not pode_concluir_demanda(pessoa, demanda):
         return JsonResponse({'error': 'Sem permissão'}, status=403)
 
     demanda.reabrir()
@@ -2631,26 +2679,33 @@ def gerenciar_participantes_projeto(request, projeto_id):
 @login_required
 @require_POST
 def excluir_demanda(request, demanda_id):
-    """Exclui uma demanda/pendência - apenas gestor"""
-    demanda = get_object_or_404(Demanda, id=demanda_id)
+    """Exclui uma demanda/pendência - solicitante, gestor da empresa ou staff"""
     pessoa = get_pessoa_or_redirect(request)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     if not pessoa:
+        if is_ajax:
+            return JsonResponse({'error': 'Sem permissão'}, status=403)
         return redirect('dashboard')
 
-    empresas = get_empresas_filtradas(pessoa, request)
-    pode_excluir = (request.user.is_staff or
-                    (pessoa.eh_gestor and demanda.empresa in empresas))
+    demanda = get_objeto_da_empresa(Demanda, demanda_id, pessoa.empresas.filter(ativo=True))
 
-    if not pode_excluir:
+    if not pode_excluir_demanda(pessoa, demanda, request.user):
+        if is_ajax:
+            return JsonResponse({'error': 'Você não tem permissão para excluir esta demanda.'}, status=403)
         messages.error(request, 'Você não tem permissão para excluir esta demanda.')
-        return redirect('lista_demandas')
+        return redirect('detalhe_demanda', demanda_id=demanda.id)
 
     titulo = demanda.titulo
+    voltar_para_pessoas = bool(demanda.contato_id)
     demanda.delete()
-    messages.success(request, f'Demanda "{titulo}" excluída.')
-    return redirect('lista_demandas')
 
+    if is_ajax:
+        return JsonResponse({'status': 'ok', 'message': f'Demanda "{titulo}" excluída.'})
+
+    messages.success(request, f'Demanda "{titulo}" excluída.')
+    destino = reverse('lista_demandas')
+    return redirect(destino + '?tab=pessoas' if voltar_para_pessoas else destino)
 
 def excluir_etapa_projeto(request, demanda_id):
     """Exclui uma etapa (demanda) do projeto"""

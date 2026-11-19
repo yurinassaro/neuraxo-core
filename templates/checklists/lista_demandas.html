@@ -3,6 +3,8 @@
 {% block title %}Pendencias - NeuraxoCore{% endblock %}
 
 {% block content %}
+{# token CSRF da pagina (usado pelas acoes assincronas: excluir demanda, pagar conta) #}
+<form id="csrf-holder" class="hidden">{% csrf_token %}</form>
 <div class="mb-6 flex justify-between items-center">
     <div>
         <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Pendencias</h1>
@@ -101,7 +103,7 @@
 
         <div x-show="open" x-transition class="space-y-3">
             {% for demanda in dados.demandas %}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 {% if demanda.get_status_prazo == 'atrasado' %}border-red-500{% elif demanda.get_status_prazo == 'urgente' %}border-orange-500{% elif demanda.get_status_prazo == 'proximo' %}border-yellow-500{% elif demanda.status == 'concluido' %}border-green-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+            <div id="demanda-{{ demanda.id }}" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 {% if demanda.get_status_prazo == 'atrasado' %}border-red-500{% elif demanda.get_status_prazo == 'urgente' %}border-orange-500{% elif demanda.get_status_prazo == 'proximo' %}border-yellow-500{% elif demanda.status == 'concluido' %}border-green-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="flex items-center space-x-2 mb-2">
@@ -170,14 +172,13 @@
                            class="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200 text-sm rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 text-center">
                             Abrir
                         </a>
-                        {% if pessoa.eh_gestor or user.is_staff %}
-                        <form action="{% url 'excluir_demanda' demanda.id %}" method="post"
-                              onsubmit="return confirm('Excluir permanentemente a demanda &quot;{{ demanda.titulo|escapejs }}&quot;?');">
-                            {% csrf_token %}
-                            <button type="submit" class="w-full px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-                                Excluir
-                            </button>
-                        </form>
+                        {% if demanda.status != 'concluido' %}{% if demanda.responsavel_id == pessoa.id or demanda.solicitante_id == pessoa.id or pessoa.eh_gestor %}
+                        <button type="button" onclick="concluirDemanda(this, {{ demanda.id }}, '{{ demanda.titulo|escapejs }}')"
+                        class="w-full px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">Concluir</button>
+                        {% endif %}{% endif %}
+                        {% if demanda.solicitante_id == pessoa.id or pessoa.eh_gestor or user.is_staff %}
+                        <button type="button" onclick="excluirDemanda(this, '{% url 'excluir_demanda' demanda.id %}', '{{ demanda.titulo|escapejs }}', {{ demanda.id }})"
+                        class="w-full px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">Excluir</button>
                         {% endif %}
                     </div>
                 </div>
@@ -345,7 +346,7 @@
     </div>
 
     {% for p in pessoas_dados %}
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-3" x-data="{ open: false }">
+    <div data-contato-card class="bg-white dark:bg-gray-800 rounded-lg shadow mb-3" x-data="{ open: false }">
         <div class="flex items-center justify-between p-4 gap-2">
             <button type="button" @click="open = !open" class="flex items-center space-x-3 flex-1 min-w-0 text-left">
                 <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -359,12 +360,12 @@
                 {% if p.atrasadas > 0 %}
                 <span class="px-2 py-0.5 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full">{{ p.atrasadas }} atrasada{{ p.atrasadas|pluralize }}</span>
                 {% endif %}
-                <span class="px-2 py-0.5 text-xs {% if p.total %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200{% else %}bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400{% endif %} rounded-full">{{ p.total }}</span>
+                <span data-contato-total class="px-2 py-0.5 text-xs {% if p.total %}bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200{% else %}bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400{% endif %} rounded-full">{{ p.total }}</span>
             </div>
         </div>
         <div x-show="open" x-transition class="border-t dark:border-gray-700 p-4 space-y-2">
             {% for d in p.demandas %}
-            <div class="flex items-center justify-between gap-2 py-2 px-3 rounded hover:bg-gray-50 dark:hover:bg-gray-700 border-l-4 {% if d.get_status_prazo == 'atrasado' %}border-red-500{% elif d.get_status_prazo == 'urgente' %}border-orange-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+            <div data-demanda-row="{{ d.id }}" class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 px-3 rounded hover:bg-gray-50 dark:hover:bg-gray-700 border-l-4 {% if d.get_status_prazo == 'atrasado' %}border-red-500{% elif d.get_status_prazo == 'urgente' %}border-orange-500{% else %}border-gray-300 dark:border-gray-600{% endif %}">
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center space-x-2">
                         <span class="text-sm font-medium text-gray-800 dark:text-white truncate">{{ d.titulo }}</span>
@@ -376,7 +377,17 @@
                         {{ d.empresa.nome }} | Prazo: {{ d.prazo|date:"d/m/Y H:i" }}{% if d.responsavel %} | {{ d.responsavel.nome }}{% endif %}
                     </div>
                 </div>
-                <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded hover:bg-indigo-200 flex-shrink-0">Abrir</a>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                    <a href="{% url 'detalhe_demanda' d.id %}" class="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded hover:bg-indigo-200">Abrir</a>
+                    {% if d.responsavel_id == pessoa.id or d.solicitante_id == pessoa.id or pessoa.eh_gestor %}
+                    <button type="button" onclick="concluirDemanda(this, {{ d.id }}, '{{ d.titulo|escapejs }}')"
+                        class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">Concluir</button>
+                    {% endif %}
+                    {% if d.solicitante_id == pessoa.id or pessoa.eh_gestor or user.is_staff %}
+                    <button type="button" onclick="excluirDemanda(this, '{% url 'excluir_demanda' d.id %}', '{{ d.titulo|escapejs }}', {{ d.id }})"
+                        class="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">Excluir</button>
+                    {% endif %}
+                </div>
             </div>
             {% empty %}
             <p class="text-sm text-gray-500 dark:text-gray-400">Nenhuma pendência com {{ p.contato.nome }}.</p>
@@ -608,6 +619,73 @@ function pagarConta(itemId, btn) {
         alert('Erro de conexão');
         btn.disabled = false;
         btn.textContent = 'Pagar';
+    });
+}
+
+// Some com a demanda de todas as abas (card de Pendências + linha da aba Pessoas)
+function removerDemandaDaTela(id) {
+    document.querySelectorAll('#demanda-' + id + ', [data-demanda-row="' + id + '"]').forEach(el => {
+        const contador = el.closest('[data-contato-card]')?.querySelector('[data-contato-total]');
+        if (contador) contador.textContent = Math.max(0, (parseInt(contador.textContent, 10) || 0) - 1);
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+    });
+}
+
+function concluirDemanda(btn, id, titulo) {
+    if (!confirm('Concluir a pendência "' + titulo + '"?')) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const token = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch('/demanda/' + id + '/status/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'concluido' })
+    })
+    .then(r => r.json().catch(() => ({})))
+    .then(data => {
+        if (data.status === 'ok') {
+            removerDemandaDaTela(id);
+        } else {
+            alert(data.error || 'Erro ao concluir a pendência');
+            btn.disabled = false;
+            btn.textContent = 'Concluir';
+        }
+    })
+    .catch(() => {
+        alert('Erro de conexão');
+        btn.disabled = false;
+        btn.textContent = 'Concluir';
+    });
+}
+
+function excluirDemanda(btn, url, titulo, id) {
+    if (!confirm('Excluir permanentemente a demanda "' + titulo + '"?')) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const token = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': token,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            removerDemandaDaTela(id);
+        } else {
+            alert(data.error || 'Erro ao excluir a demanda');
+            btn.disabled = false;
+            btn.textContent = 'Excluir';
+        }
+    })
+    .catch(() => {
+        alert('Erro de conexão');
+        btn.disabled = false;
+        btn.textContent = 'Excluir';
     });
 }
 

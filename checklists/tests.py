@@ -5,6 +5,7 @@ from django.test import TestCase, Client as TestClient
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+import json
 from core.models import Empresa, Pessoa, PapelEmpresa, NotificacaoInApp
 from checklists.models import (
     ChecklistTemplate, ChecklistItem, SubTarefaTemplate, SubTarefa,
@@ -416,3 +417,127 @@ class PessoasPendenciasTests(BaseTestCase):
         self.contato_a.refresh_from_db()
         self.assertFalse(self.contato_a.ativo)
         self.assertIsNone(Demanda.objects.get(titulo='Cobrar orçamento').contato)
+
+
+class EditarEmpresaDemandaTests(BaseTestCase):
+    """Editar demanda: trocar empresa com responsável/projeto coerentes e sem IDOR."""
+
+    def setUp(self):
+        super().setUp()
+        self.c.force_login(self.user_gestor)
+        self.demanda = Demanda.objects.create(
+            empresa=self.neuraxo, titulo='Mover de empresa',
+            responsavel=self.pessoa_gestor, solicitante=self.pessoa_gestor,
+            prazo=timezone.now() + timedelta(days=2),
+        )
+        self.url = f'/demanda/{self.demanda.id}/editar/'
+
+    def _post(self, **extra):
+        dados = {'titulo': 'Mover de empresa', 'prazo': '2030-01-01T10:00', 'prioridade': 'media',
+                 'empresa': self.rw6.id, 'responsavel': self.pessoa_gestor.id}
+        dados.update(extra)
+        return self.c.post(self.url, dados)
+
+    def test_troca_empresa(self):
+        self._post()
+        self.demanda.refresh_from_db()
+        self.assertEqual(self.demanda.empresa, self.rw6)
+
+    def test_responsavel_fora_da_nova_empresa_bloqueia(self):
+        # pessoa_func só é da Neuraxo, não da RW6
+        self._post(responsavel=self.pessoa_func.id)
+        self.demanda.refresh_from_db()
+        self.assertEqual(self.demanda.empresa, self.neuraxo)
+        self.assertEqual(self.demanda.responsavel, self.pessoa_gestor)
+
+    def test_projeto_de_outra_empresa_bloqueia(self):
+        proj_neuraxo = Projeto.objects.create(empresa=self.neuraxo, titulo='P', responsavel=self.pessoa_gestor)
+        self._post(projeto=proj_neuraxo.id)
+        self.demanda.refresh_from_db()
+        self.assertEqual(self.demanda.empresa, self.neuraxo)
+        self.assertIsNone(self.demanda.projeto)
+
+    def test_nao_move_para_empresa_que_nao_e_minha(self):
+        estranha = Empresa.objects.create(nome='Estranha')
+        self._post(empresa=estranha.id)
+        self.demanda.refresh_from_db()
+        self.assertEqual(self.demanda.empresa, self.neuraxo)
+
+    def test_demanda_de_empresa_alheia_da_404(self):
+        estranha = Empresa.objects.create(nome='Estranha')
+        alheia = Demanda.objects.create(empresa=estranha, titulo='Alheia',
+                                        prazo=timezone.now() + timedelta(days=2))
+        self.assertEqual(self.c.get(f'/demanda/{alheia.id}/editar/').status_code, 404)
+
+
+class ConcluirExcluirDemandaTests(BaseTestCase):
+    """Anti clique-duplo na criação + concluir/excluir com escopo de empresa."""
+
+    def setUp(self):
+        super().setUp()
+        self.demanda = Demanda.objects.create(
+            empresa=self.neuraxo, titulo='Pendencia teste',
+            responsavel=self.pessoa_gestor, solicitante=self.pessoa_func,
+            prazo=timezone.now() + timedelta(days=2),
+        )
+
+    def _status(self, demanda, status='concluido'):
+        return self.c.post(f'/demanda/{demanda.id}/status/', data=json.dumps({'status': status}),
+                           content_type='application/json')
+
+    def test_clique_duplo_cria_uma_so(self):
+        self.c.force_login(self.user_gestor)
+        dados = {'empresa': self.neuraxo.id, 'responsavel': self.pessoa_gestor.id,
+                 'titulo': 'Criada uma vez', 'prazo': '2030-01-01T10:00', 'prioridade': 'media'}
+        r1 = self.c.post('/demandas/nova/', dados)
+        r2 = self.c.post('/demandas/nova/', dados)
+        self.assertEqual(Demanda.objects.filter(titulo='Criada uma vez').count(), 1)
+        self.assertEqual(r1.url, r2.url)
+
+    def test_solicitante_conclui(self):
+        self.c.force_login(self.user_func)
+        self.assertEqual(self._status(self.demanda).status_code, 200)
+        self.demanda.refresh_from_db()
+        self.assertEqual(self.demanda.status, 'concluido')
+
+    def test_concluir_demanda_de_empresa_alheia_da_404(self):
+        alheia = Demanda.objects.create(
+            empresa=Empresa.objects.create(nome='Estranha'), titulo='Alheia',
+            prazo=timezone.now() + timedelta(days=2),
+        )
+        self.c.force_login(self.user_gestor)
+        self.assertEqual(self._status(alheia).status_code, 404)
+        alheia.refresh_from_db()
+        self.assertNotEqual(alheia.status, 'concluido')
+
+    def test_solicitante_exclui(self):
+        self.c.force_login(self.user_func)
+        self.c.post(f'/demanda/{self.demanda.id}/excluir/', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertFalse(Demanda.objects.filter(id=self.demanda.id).exists())
+
+    def test_colaborador_nao_exclui_demanda_dos_outros(self):
+        outra = Demanda.objects.create(
+            empresa=self.neuraxo, titulo='Do gestor',
+            responsavel=self.pessoa_func, solicitante=self.pessoa_gestor,
+            prazo=timezone.now() + timedelta(days=2),
+        )
+        self.c.force_login(self.user_func)
+        r = self.c.post(f'/demanda/{outra.id}/excluir/', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(Demanda.objects.filter(id=outra.id).exists())
+
+    def test_excluir_demanda_de_empresa_alheia_da_404(self):
+        alheia = Demanda.objects.create(
+            empresa=Empresa.objects.create(nome='Estranha'), titulo='Alheia',
+            prazo=timezone.now() + timedelta(days=2),
+        )
+        self.c.force_login(self.user_gestor)
+        r = self.c.post(f'/demanda/{alheia.id}/excluir/', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(r.status_code, 404)
+        self.assertTrue(Demanda.objects.filter(id=alheia.id).exists())
+
+    def test_detalhe_mostra_botoes(self):
+        self.c.force_login(self.user_func)
+        html = self.c.get(f'/demanda/{self.demanda.id}/').content.decode()
+        self.assertIn(f'/demanda/{self.demanda.id}/excluir/', html)
+        self.assertIn("mudarStatus('concluido')", html)

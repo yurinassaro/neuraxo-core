@@ -10,7 +10,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-w-2xl">
     <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">Nova Demanda</h1>
 
-    <form method="post" enctype="multipart/form-data" class="space-y-6">
+    <form method="post" enctype="multipart/form-data" class="space-y-6" onsubmit="return travarEnvio(this);">
         {% csrf_token %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -109,7 +109,7 @@
             <a href="{% url 'lista_demandas' %}" class="px-6 py-2 text-gray-600 hover:text-gray-800">
                 Cancelar
             </a>
-            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait">
                 Criar Demanda
             </button>
         </div>
@@ -117,6 +117,14 @@
 </div>
 
 <script>
+// Anti clique-duplo: depois do 1º envio o botão trava até a página trocar
+function travarEnvio(form) {
+    if (form.dataset.enviando) return false;
+    form.dataset.enviando = '1';
+    const btn = form.querySelector('button[type=submit]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Criando...'; }
+    return true;
+}
 const empresaSelect = document.getElementById('empresa');
 const responsavelSelect = document.getElementById('responsavel');
 // Vindo da aba Pessoas (?contato=) sem responsável: sugere o próprio usuário
